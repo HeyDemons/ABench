@@ -160,7 +160,8 @@ def validate_report(sub: Path, case_id: Optional[str], profiles: Dict[str, Any],
         declared_case = p.meta.get("abench-case-id")
         if declared_case and declared_case not in (case_id, "<CASE_ID>", "⟨CASE_ID⟩"):
             errors.append(f"report/index.html abench-case-id={declared_case!r} does not match {case_id!r}")
-    for cls in ("ltx_document", "ltx_title_document", "ltx_abstract", "ltx_section", "ltx_bibliography", "ltx_bibitem"):
+    # The bibliography counts by its ltx_bibitem entries; the section's own ltx_bibliography class is not required.
+    for cls in ("ltx_document", "ltx_title_document", "ltx_abstract", "ltx_section", "ltx_bibitem"):
         if cls not in p.classes:
             errors.append(f"report/index.html lacks arXiv HTML structure: .{cls}")
     for anchor in prof["required_anchors"]:

@@ -280,7 +280,7 @@ def main():
         "catalog_distribution": distribution(catalog),
         "standard": standard_cases(index),
         "areas": yaml.safe_load((ROOT / "spec" / "areas.yaml").read_text(encoding="utf-8"))["areas"],
-        "launch": {"case": "TC-FT-001", "script": "./abench doctor; ./abench images pull; ./abench calibrate TC-FT-001; ./abench run --case TC-FT-001 --agent mock",
+        "launch": {"case": "TC-FT-001", "script": "./abench doctor; ./abench images pull; python3 tools/prepare/run.py --case TC-FT-001 --raw-dir RAW --key-file ~/.abench/hidden.key; ./abench calibrate TC-FT-001; ./abench run --case TC-FT-001 --agent mock",
                    "steps": ["preflight", "key", "data", "mock", "agent", "judge"],
                    "verified": "all six steps run in a cloud container with synthetic data and a stub claude CLI (2026-10-20); "
                                "the runner and judge path calibrated end to end on 2026-10-23 (see Calibration runs)",
@@ -295,7 +295,7 @@ def main():
                 {"case": "FN-LTSF-005", "data": "real ETT + electricity",
                  "primary": "MSE ratio 0.999 [0.993, 1.007]", "agent": "train.py --final 4.7 min"},
             ],
-            "note": ("OJ calibration (./abench calibrate CASE): the oracle adapter trains the reference submission with "
+            "note": ("OJ calibration (./abench calibrate CASE, on the data frozen in the checkout): the oracle adapter trains the reference submission with "
                      "its own train.py in a container and tools/oj_eval.py judges the held-out split in fresh stage containers. "
                      "The historical numbers above predate the Docker migration. The record gives the base score "
                      "of the case and its interval. Calibration runs are never scorable (synthetic data, or a case awaiting "

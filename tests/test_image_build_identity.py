@@ -16,7 +16,6 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 import images
-import publish_images
 
 
 SNAPSHOT = {'schema': 'abench.environment/v1', 'profile': 'cpu-sci',
@@ -104,11 +103,11 @@ class ImageBuildTests(unittest.TestCase):
         self.config = {'namespace': 'registry.example/abench', 'node': '24.14.0',
                        'harnesses': {'claude': {'version': '2.1.312', 'npm': '@anthropic-ai/claude-code'}},
                        'images': {'cpu-sci': {'platforms': ['linux/amd64']},
-                                  'egress': {'version': '2026.10', 'source': 'python:3.11-test',
+                                  'egress': {'version': '1.0.0', 'source': 'python:3.11-test',
                                              'platforms': ['linux/amd64']}}}
         (self.root / 'spec/env/images.yaml').write_text(yaml.safe_dump(self.config))
         (self.root / 'spec/env/profiles.yaml').write_text(yaml.safe_dump({'profiles': {
-            'cpu-sci': {'version': '2026.10', 'base': 'python:3.11-test', 'packages': {'numpy': '2.2.6'}}}}))
+            'cpu-sci': {'version': '1.0.0', 'base': 'python:3.11-test', 'packages': {'numpy': '2.2.6'}}}}))
         (self.root / 'spec/env/images.lock.yaml').write_text('images: {}\n')
         self.root_patch = patch.object(images, 'ROOT', self.root)
         self.root_patch.start()
@@ -120,54 +119,6 @@ class ImageBuildTests(unittest.TestCase):
 
     def write_manifest(self, config):
         (self.root / 'spec/env/images.yaml').write_text(yaml.safe_dump(config))
-
-    def prepare_agent(self, docker):
-        path = images.env_lock_path('cpu-sci', '2026.10')
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(SNAPSHOT))
-        docker.images['registry.example/abench/cpu-sci:2026.10'] = {'Id': 'sha256:profile-one'}
-
-    def test_agent_versions_include_packaging_and_remain_stable_when_parent_is_published(self):
-        original = images.image_version('cpu-sci', 'claude')
-        self.assertEqual(images.image_version('cpu-sci'), '2026.10')
-        for field, value in [('node', '24.15.0'), ('agent_packaging_revision', 2)]:
-            changed = deepcopy(self.config)
-            changed[field] = value
-            self.write_manifest(changed)
-            self.assertNotEqual(images.image_version('cpu-sci', 'claude'), original, field)
-        changed = deepcopy(self.config)
-        changed['harnesses']['claude']['version'] = '2.1.313'
-        self.write_manifest(changed)
-        self.assertNotEqual(images.image_version('cpu-sci', 'claude'), original)
-        self.write_manifest(self.config)
-        dockerfile = images.agent_dockerfile
-        with patch.object(images, 'agent_dockerfile', side_effect=lambda *args: dockerfile(*args) + '# recipe change\n'):
-            self.assertNotEqual(images.image_version('cpu-sci', 'claude'), original)
-        digest = 'sha256:' + 'a' * 64
-        with patch.object(images, 'lock_entries', return_value={'cpu-sci@2026.10': {
-                'linux/amd64': {'digest': digest, 'reference': 'registry.example/abench/cpu-sci@' + digest}}}):
-            self.assertEqual(images.image_version('cpu-sci', 'claude'), original)
-        self.assertNotEqual(images.image_version('cpu-sci', 'claude', '2026.09'), original)
-        changed = deepcopy(self.config)
-        changed['images']['cpu-sci']['platforms'].append('linux/arm64')
-        self.write_manifest(changed)
-        self.assertNotEqual(images.image_version('cpu-sci', 'claude'), original)
-        changed['harnesses']['claude']['source'] = {'pnpm': '10.33.2', 'tag': 'v1.0',
-                                                   'repository': 'https://example.invalid/cli', 'commit': 'a' * 40}
-        self.write_manifest(changed)
-        source_version = images.image_version('cpu-sci', 'claude')
-        changed['harnesses']['claude']['source']['commit'] = 'b' * 40
-        self.write_manifest(changed)
-        self.assertNotEqual(images.image_version('cpu-sci', 'claude'), source_version)
-
-    def test_explicit_historical_agent_version_keeps_its_published_digest(self):
-        version = '2026.09-claude2.1.38'
-        digest = 'sha256:' + 'b' * 64
-        reference = 'registry.example/abench/agent-claude-cpu-sci@' + digest
-        with patch.object(images, 'lock_entries', return_value={f'agent-claude-cpu-sci@{version}': {
-                'linux/amd64': {'digest': digest, 'reference': reference}}}):
-            self.assertEqual(images.resolve_image('cpu-sci', 'claude', version=version,
-                                                  platform='linux/amd64'), reference)
 
     def test_same_concurrent_requests_build_and_verify_only_once(self):
         docker = FakeDocker()
@@ -187,7 +138,7 @@ class ImageBuildTests(unittest.TestCase):
 
     def test_unvalidated_or_retagged_images_never_hit_success_cache(self):
         docker = FakeDocker()
-        tag = 'registry.example/abench/cpu-sci:2026.10'
+        tag = 'registry.example/abench/cpu-sci:1.0.0'
         docker.images[tag] = {'Id': 'sha256:old', 'Config': {'Labels': {}}}
         self.assertFalse(images.manage('build', docker=docker)['reused'])
         docker.images[tag]['Id'] = 'sha256:replaced'
@@ -196,71 +147,35 @@ class ImageBuildTests(unittest.TestCase):
 
     def test_failed_environment_check_has_no_success_marker(self):
         docker = FakeDocker()
-        self.prepare_agent(docker)
+        path = images.env_lock_path('cpu-sci', '1.0.0')
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(SNAPSHOT))
         docker.snapshot['software']['distributions']['numpy'] = 'wrong'
-        with self.assertRaisesRegex(ValueError, 'modified Python environment'):
-            images.manage('build', agent='claude', docker=docker)
+        with self.assertRaisesRegex(ValueError, 'profile environment changed; bump profile version'):
+            images.manage('build', docker=docker)
         self.assertEqual(list((Path(self.tmp.name) / 'cache').rglob('*.json')), [])
         docker.snapshot = deepcopy(SNAPSHOT)
-        self.assertFalse(images.manage('build', agent='claude', docker=docker)['reused'])
-        self.assertTrue(images.manage('build', agent='claude', docker=docker)['reused'])
+        self.assertFalse(images.manage('build', docker=docker)['reused'])
+        self.assertTrue(images.manage('build', docker=docker)['reused'])
         self.assertEqual(len(docker.builds), 2)
 
     def test_actual_parent_identity_and_daemon_separate_build_reuse(self):
         docker = FakeDocker()
-        self.prepare_agent(docker)
-        first = images.manage('build', agent='claude', docker=docker)
-        docker.images['registry.example/abench/cpu-sci:2026.10']['Id'] = 'sha256:profile-two'
-        second = images.manage('build', agent='claude', docker=docker)
+        first = images.manage('build', docker=docker)
+        docker.images['python:3.11-test']['Id'] = 'sha256:base-two'          # the base tag now names another image
+        second = images.manage('build', docker=docker)
         self.assertEqual(first['image'], second['image'])
         self.assertNotEqual(first['build_inputs_sha256'], second['build_inputs_sha256'])
-        self.assertEqual(docker.build_parent_ids, ['sha256:profile-one', 'sha256:profile-two'])
-        self.assertTrue(all(tag.startswith('abench-build-parent:') for _, tag in docker.parent_tags))
-        self.assertEqual(len({tag for _, tag in docker.parent_tags}), 2)
-        self.assertEqual(docker.parent_tag_removals, [tag for _, tag in docker.parent_tags])
-        self.assertFalse(any(tag in docker.images for _, tag in docker.parent_tags))
-        self.assertEqual(docker.images['registry.example/abench/cpu-sci:2026.10']['Id'], 'sha256:profile-two')
-        another = FakeDocker('another-daemon')
-        self.prepare_agent(another)
-        self.assertFalse(images.manage('build', agent='claude', docker=another)['reused'])
-        self.assertEqual(len(another.builds), 1)
+        self.assertFalse(images.manage('build', docker=FakeDocker('another-daemon'))['reused'])
 
-    def test_concurrent_agent_builds_share_work_without_sharing_a_temporary_parent_tag(self):
+    def test_a_harness_name_builds_its_bundle_not_an_image(self):
         docker = FakeDocker()
-        self.prepare_agent(docker)
-        with ThreadPoolExecutor(max_workers=3) as pool:
-            results = list(pool.map(lambda _: images.manage('build', agent='claude', docker=docker), range(3)))
-        self.assertEqual(len(docker.builds), 1)
-        self.assertEqual(len(docker.parent_tags), 1)
-        self.assertEqual(docker.build_parent_ids, ['sha256:profile-one'])
-        self.assertEqual(docker.parent_tag_removals, [docker.parent_tags[0][1]])
-        self.assertEqual(sum(not result['reused'] for result in results), 1)
-
-    def test_failed_build_removes_only_its_parent_tag_and_preserves_original_failure(self):
-        for cleanup_failure in (None, 'daemon unavailable'):
-            with self.subTest(cleanup_failure=cleanup_failure):
-                docker = FakeDocker()
-                self.prepare_agent(docker)
-                docker.build_failure = images.DockerError('original build failure')
-                docker.remove_failure = cleanup_failure
-                with self.assertRaisesRegex(images.DockerError, 'original build failure') as caught:
-                    images.manage('build', agent='claude', docker=docker)
-                self.assertEqual(docker.parent_tag_removals, [docker.parent_tags[0][1]])
-                self.assertIn('registry.example/abench/cpu-sci:2026.10', docker.images)
-                self.assertEqual(list((Path(self.tmp.name) / 'cache').rglob('*.json')), [])
-                if cleanup_failure:
-                    self.assertTrue(any('daemon unavailable' in note for note in getattr(caught.exception, '__notes__', [])))
-                else:
-                    self.assertNotIn(docker.parent_tags[0][1], docker.images)
-
-    def test_parent_tag_cleanup_failure_after_build_does_not_write_success_marker(self):
-        docker = FakeDocker()
-        self.prepare_agent(docker)
-        docker.remove_failure = 'temporary tag busy'
-        with self.assertRaisesRegex(images.DockerError, 'failed to remove temporary parent tag'):
-            images.manage('build', agent='claude', docker=docker)
-        self.assertEqual(list((Path(self.tmp.name) / 'cache').rglob('*.json')), [])
-        self.assertEqual(docker.environment_reads, 0)
+        with patch('harness_bundles.build', return_value={'key': 'harness-claude@x'}) as build:
+            self.assertEqual(images.manage('build', agent='claude', docker=docker), {'key': 'harness-claude@x'})
+        build.assert_called_once_with('claude', docker, 'linux/amd64')
+        self.assertEqual(docker.builds, [])
+        self.assertEqual(images.manage('build', agent='mock', docker=docker)['image'],
+                         'registry.example/abench/cpu-sci:1.0.0')                # offline agents use the profile
 
     def test_build_proxy_override_preserves_host_proxy_and_does_not_change_content_identity(self):
         docker = FakeDocker()
@@ -296,58 +211,6 @@ class ImageBuildTests(unittest.TestCase):
         for name in host:
             self.assertIn(name, args)
             self.assertFalse(any(item.startswith(name + '=') for item in args))
-
-    def publication_lock(self, recipe=None):
-        digest = 'sha256:' + 'c' * 64
-        parent = {'digest': digest, 'reference': 'registry.example/abench/cpu-sci@' + digest}
-        lock = {'images': {'cpu-sci@2026.10': {'linux/amd64': parent},
-                           'egress@2026.10': {'linux/amd64': parent}}}
-        if recipe is not None:
-            version = images.image_version('cpu-sci', 'claude')
-            lock['images'][f'agent-claude-cpu-sci@{version}'] = {
-                'linux/amd64': {**parent, 'recipe_sha256': recipe}}
-        return lock
-
-    def test_publication_does_not_skip_a_mismatched_recipe_lock(self):
-        path = self.root / 'spec/env/images.lock.yaml'
-        path.write_text(yaml.safe_dump(self.publication_lock('wrong')))
-        with patch.object(publish_images, 'LOCK', path), patch.object(publish_images, 'published', return_value=True), \
-                patch.object(publish_images, 'command') as command:
-            with self.assertRaisesRegex(RuntimeError, 'packaging identity'):
-                publish_images.main()
-        command.assert_not_called()
-
-    def test_node_upgrade_releases_a_new_agent_tag_and_preserves_old_lock(self):
-        old_version = images.image_version('cpu-sci', 'claude')
-        old_recipe = images.agent_recipe_hash('cpu-sci', 'claude')
-        lock = self.publication_lock(old_recipe)
-        path = self.root / 'spec/env/images.lock.yaml'
-        path.write_text(yaml.safe_dump(lock))
-        changed = deepcopy(self.config)
-        changed['node'] = '24.15.0'
-        self.write_manifest(changed)
-        version = images.image_version('cpu-sci', 'claude')
-        images.env_lock_path('cpu-sci', '2026.10').parent.mkdir(parents=True, exist_ok=True)
-        images.env_lock_path('cpu-sci', '2026.10').write_text(json.dumps(SNAPSHOT))
-        agent_tag = f'registry.example/abench/agent-claude-cpu-sci:{version}'
-        def is_published(tag):
-            return tag != agent_tag
-        def command(args, capture=False):
-            return json.dumps(SNAPSHOT) if args[:2] == ['docker', 'run'] else ''
-        new_entry = {'linux/amd64': {'digest': 'sha256:' + 'd' * 64,
-                                    'reference': 'registry.example/abench/agent-claude-cpu-sci@sha256:' + 'd' * 64}}
-        with patch.object(publish_images, 'LOCK', path), patch.object(publish_images, 'published', side_effect=is_published), \
-                patch.object(publish_images, 'command', side_effect=command) as run, \
-                patch.object(publish_images, 'platform_locks', return_value=new_entry), \
-                patch.object(publish_images.subprocess, 'run'):
-            publish_images.main()
-        pushes = [call.args[0] for call in run.call_args_list if '--push' in call.args[0]]
-        self.assertEqual(len(pushes), 1)
-        self.assertIn(agent_tag, pushes[0])
-        saved = yaml.safe_load(path.read_text())['images']
-        self.assertIn(f'agent-claude-cpu-sci@{old_version}', saved)
-        self.assertEqual(saved[f'agent-claude-cpu-sci@{version}']['linux/amd64']['recipe_sha256'],
-                         images.agent_recipe_hash('cpu-sci', 'claude'))
 
 
 if __name__ == '__main__':

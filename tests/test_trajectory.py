@@ -41,3 +41,40 @@ class AtifTest(unittest.TestCase):
         self.assertNotIn('source_call_id',out['steps'][1]['observation']['results'][0])
         self.assertEqual(out['steps'][1]['observation']['results'][0]['extra']['original_call_id'],'missing')
         self.assertEqual(out['session_id'],claude_to_atif('\n'.join(json.dumps(e) for e in (event,event,orphan)).encode(),'2.1.38')['session_id'])
+
+
+class DshTrajectoryTest(unittest.TestCase):
+    """DSH truncates long stdout fields; its own session logs are complete and name the answering model."""
+    def test_truncated_stdout_events_are_counted(self):
+        from agents.trajectory import summarize_dsh
+        rows = [{'type': 'status', 'phase': 'turn_start'},
+                {'type': 'tool_result', 'callId': 'a', 'result': 'x' * 10, 'truncated': True},
+                {'type': 'tool_result', 'callId': 'b', 'result': 'short'},
+                {'type': 'status', 'phase': 'turn_end', 'reason': {'kind': 'completed'}},
+                {'type': 'final', 'text': 'done'}]
+        summary = summarize_dsh('\n'.join(json.dumps(r) for r in rows).encode())
+        self.assertEqual((summary['events'], summary['truncated_events']), (5, 1))
+        self.assertEqual(summary['actual_models'], [])
+
+    def test_session_logs_give_models_and_full_counts(self):
+        import shutil, subprocess, tempfile
+        from agents.trajectory import summarize_dsh_sessions
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root)
+        session = root / '.dsh/sessions/--abench-workspace--/session-1'
+        session.mkdir(parents=True)
+        rows = [{'type': 'session', 'id': 'session-1'},
+                {'type': 'assistant/message', 'data': {'message': {'source': {'model': 'deepseek-flash'}}}},
+                {'type': 'tool/result', 'data': {'message': {'content': [{'type': 'text', 'text': 'y' * 20000}]}}},
+                {'type': 'assistant/message', 'data': {'message': {'source': {'model': 'deepseek-flash'}}}}]
+        plain = session / 'session.v4.jsonl'
+        plain.write_text('\n'.join(json.dumps(r) for r in rows) + '\n')
+        expected = {'responses': 2, 'tool_results': 1, 'actual_models': ['deepseek-flash'], 'readable': True}
+        summary = summarize_dsh_sessions(root)
+        self.assertEqual({k: summary[k] for k in expected}, expected)
+        if shutil.which('zstd'):                     # the format DSH writes
+            subprocess.run(['zstd', '-q', '--rm', str(plain), '-o', str(plain) + '.zstd'], check=True)
+            summary = summarize_dsh_sessions(root)
+            self.assertEqual(summary['files'], ['.dsh/sessions/--abench-workspace--/session-1/session.v4.jsonl.zstd'])
+            self.assertEqual({k: summary[k] for k in expected}, expected)
+        self.assertIsNone(summarize_dsh_sessions(root / 'missing'))

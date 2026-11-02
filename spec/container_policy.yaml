@@ -1,4 +1,8 @@
 schema: abench.container_policy/v1
+# The original host runner set no CPU, memory, /dev/shm or process limit. Agent and judge containers therefore get
+# all CPUs and nearly all memory of the Docker host (host_scale); the per-profile values below remain the reference
+# allocation that task statements describe. GPUs are still assigned as each case declares.
+host_scale: {memory_fraction: 0.9, shm_fraction: 0.5, pids: 65536}
 user: '1000:1000'
 limits: {cpus: 64, memory: 512g, shm_size: 128g, pids: 8192, gpus: 4}
 defaults:

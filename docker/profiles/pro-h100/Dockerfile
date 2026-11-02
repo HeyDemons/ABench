@@ -3,6 +3,7 @@ FROM python:3.11.13-slim-bookworm
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tar coreutils libgomp1 && rm -rf /var/lib/apt/lists/*
 RUN useradd --uid 1000 --create-home abench && mkdir -p /abench/view /abench/workspace /abench/models /abench/papers /abench/tools /run/abench-egress && chown -R 1000:1000 /abench /run/abench-egress
+RUN apt-get update && apt-get install -y --no-install-recommends procps psmisc lsof strace curl wget netcat-openbsd iputils-ping iproute2 git less vim nano patch unzip zip xz-utils bzip2 file jq bc tree time rsync tmux poppler-utils gcc g++ && rm -rf /var/lib/apt/lists/*
 COPY docker/profiles/pro-h100/requirements.lock /tmp/requirements.lock
 RUN python3 -m pip install --no-cache-dir -r /tmp/requirements.lock
 COPY tools/record_environment.py /abench/tools/record_environment.py

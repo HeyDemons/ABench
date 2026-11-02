@@ -1,0 +1,23 @@
+schema: abench.categories/v1
+description: >-
+  The five categories runs are organized by, as in the published dataset (huggingface.co/datasets/Migraine/ABench:
+  query/<category>/<case>, result/<category>/<case>/<model>). A case's category follows its homepage track; every
+  track of index.yaml is in exactly one category. Run records are filed as runs/<harness>-<model>/<category>/<case>/<run>.
+  The research areas of spec/areas.yaml are a separate grouping and differ for a few cases (e.g. IC-* are data_science
+  here, cv there).
+categories:
+  - id: llm_opt
+    name: LLM architecture, optimizers and non-mainstream paradigms
+    tracks: [A, B, U]
+  - id: llm_post
+    name: LLM post-training, efficient inference and kernels
+    tracks: [C, K, X]
+  - id: cv
+    name: Vision, embodied AI and multimodal
+    tracks: [E, T, V]
+  - id: data_science
+    name: Data science, recommendation, graphs and scientific domains
+    tracks: [BI, DS, FN, GN, IC, LG, MD, PH, RS, TC]
+  - id: pro
+    name: Pro Set
+    tracks: [PRO]

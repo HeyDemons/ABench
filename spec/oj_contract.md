@@ -19,7 +19,7 @@ and the run aborts if any evaluator-side name (`oj.yaml`, `hidden`, `*.enc`, `*.
 judge files) appears.
 
 Judge-side terms in the task statement are checked against `LEAK_TERMS` in `tools/leak_check.py` (hidden, evaluation, metric, threshold, reference pool,
-Pareto, leaderboard, ablation…); a case may allow the evaluation-rule terms through `agent_visible.leak_allow`, but never the terms in `NEVER_ALLOW`. `tools/validate_task_statement.py` checks every statement, and the runner checks `task.md` and every agent-visible interface file again when it builds the view.
+Pareto, leaderboard, ablation…); a case may allow the evaluation-rule terms through `agent_visible.leak_allow`, but never the terms in `NEVER_ALLOW`. `tools/validate_task_statement.py` checks every statement, including that its Sandbox Guide states the session length, development compute allowance and CPU/GPU allocation that the runner applies from `oj.yaml`, and the runner checks `task.md` and every agent-visible interface file again when it builds the view.
 
 ## 2. `case/oj.yaml`
 
@@ -39,7 +39,7 @@ submission:
   allowed_top_level: [README.md, model.py, src, checkpoint, report, references.yaml, manifest.yaml]
   max_bytes: 52428800
   report_profile: design_report_v2
-environment: {profile: cpu-sci, version: "2026.10"}
+environment: {profile: cpu-sci, version: "1.0.0"}
 resources:
   budget_tier: budget
   hardware: {reference: "8 CPU cores"}
@@ -126,16 +126,18 @@ agent stage), `metrics`, `gates`. All temporary directories are deleted.
    statement that has one.
 7. **Environment.** Image digests must match the platform-specific published locks in
    `spec/env/images.lock.yaml`, keyed `name@version`: a case runs the profile version its spec pins, so a newer
-   version of the profile never changes an older case's environment. Agent image versions add their CLI pin and
-   `-b<recipe>` packaging identity, covering Node and the harness packaging recipe. Build identities also track the
-   platform and actual parent image. Only needed profile × harness combinations are built; cases reuse their
+   version of the profile never changes an older case's environment. Versions are semantic versions. Agents run in
+   the same profile image; each harness CLI is a host-built bundle locked by its content digest. Build identities
+   also track the platform and actual parent image. Only the needed profiles and bundles are built; cases reuse their
    environment images, and runtime task files do not require rebuilding. Persistent per-build locks and successful
    environment checks prevent duplicate concurrent builds (`ABENCH_IMAGE_BUILD_CACHE`, normally
    `~/.cache/abench/images`). These local cache records never substitute for published digest locks.
    Dependency environments are recorded inside profile
    images using `tools/record_environment.py` (`spec/env/lock/<profile>@<version>.json`). Changing a profile's
    packages means a new version in `spec/env/profiles.yaml`; published versions are never rebuilt. Local
-   development images can validate the pipeline but are unscorable.
+   development images can validate the pipeline but are unscorable, unless the operator locks their exact image IDs
+   on the host (`./abench images lock --local`, `spec/env/images.local.lock.yaml`). Such runs score, and their
+   records mark the agent, sidecar and judge images as `local` (unpublished) locks.
    The host's `tools/` tree must match `ABENCH_JUDGE_TOOLS_SHA256`. The container path does not require
    `ABENCH_JUDGE_PYTHONPATH`. Scoring also requires `linux/amd64` and the case's GPU count on idle cards (Pro: an
    exclusive 4-GPU node). A GPU model other than the reference class does not affect scoring; it is recorded

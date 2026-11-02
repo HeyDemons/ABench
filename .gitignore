@@ -3,9 +3,13 @@
 /sandbox/data/
 /sandbox/hidden/
 /sandbox/models/
+/sandbox/judge_models/
+/sandbox/.prepare/
 *.key
 *.enc
 /.env
+/.env.*
+!/.env.example
 /_to_delete/
 # caches
 __pycache__/
@@ -16,3 +20,8 @@ __pycache__/
 
 # durable local job manifests and logs
 /jobs/
+
+# Host-specific image identities and lock-file synchronization stay local.
+/spec/env/images.local.lock.yaml
+/spec/env/.image-locks.lock
+/exports/

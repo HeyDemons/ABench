@@ -1,15 +1,16 @@
 schema: abench.images/v1
-# Profile image versions come from spec/env/profiles.yaml; agent images add their pinned CLI version
-# (e.g. agent-claude-gpu-torch:2026.10-claude2.1.312). Published digests: images.lock.yaml, keyed name@version.
+# Profile image versions come from spec/env/profiles.yaml; versions are semantic versions, never dates. Agents run in
+# their case's profile image: each harness CLI is a bundle mounted at run time (tools/harness_bundles.py), not an
+# image. Published digests: images.lock.yaml, keyed name@version.
 namespace: ghcr.io/huicir/abench
-# Node.js runtime copied into every agent image (DSH and ZCode need Node 24).
+# Node.js runtime of every harness bundle (DSH and ZCode need Node 24).
 node: 24.14.0
-# Harness CLIs, one agent image per harness and profile. Adapters (tools/agents) read their version from here.
+# Harness CLIs, one bundle each. Adapters (tools/agents) read their version from here and set each CLI's environment
+# when they start it.
 harnesses:
   claude:
     version: 2.1.312
     npm: '@anthropic-ai/claude-code'
-    env: {DISABLE_AUTOUPDATER: '1', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'}
   codex:
     version: 0.165.0
     npm: '@openai/codex'
@@ -19,7 +20,6 @@ harnesses:
   dsh:
     version: 0.2.1-rc.2
     npm: '@deepseek-ai/dsh'
-    env: {DSH_TELEMETRY_MODE: DISABLED}
   zcode:
     # not published on npm: built from the tagged source; `zcode --version` reports the CLI package version
     version: 3.15.1
@@ -61,7 +61,7 @@ images:
     - linux/amd64
   egress:
     name: egress
-    version: '2026.10'
+    version: 1.0.0
     source: python:3.11.13-slim-bookworm
     platforms:
     - linux/amd64

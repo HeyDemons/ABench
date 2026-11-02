@@ -36,6 +36,20 @@ def resources_for(oj):
             raise ValueError(f'{key} exceeds container policy: {value}')
     return result
 
+def host_scaled(resources, docker_info=None):
+    """All CPUs and nearly all memory of the Docker host (container policy host_scale), with /dev/shm and process
+    limits to match, as on the original host runner, which set none. GPUs stay as declared. Without the host's
+    totals the declared values stay."""
+    scale = policy().get('host_scale')
+    raw = (docker_info or {}).get('raw') or {}
+    total, cpus = int(raw.get('MemTotal') or 0), int(raw.get('NCPU') or 0)
+    if not scale or total <= 0 or cpus <= 0:
+        return resources
+    mib = 1024 ** 2   # whole MiB: the kernel rounds memory.max down to a page, and records must equal the cgroup
+    memory = int(total * float(scale['memory_fraction'])) // mib * mib
+    return {**resources, 'cpus': cpus, 'memory': memory, 'shm_size': int(memory * float(scale['shm_fraction'])) // mib * mib,
+            'pids': int(scale['pids'])}
+
 def gpu_mode(info=None):
     """Prefer Docker's native CDI inventory; explicit operator selection wins."""
     import os
@@ -121,14 +135,15 @@ def verify_inspect(inspected, image=None, network='none', mounts=None, resources
     if image:
         checks['image'] = cfg.get('Image') == image
     if mounts is not None:
-        actual = {(m['Destination'], bool(m.get('RW'))) for m in inspected.get('Mounts',[])}
+        actual = {(m['Destination'], bool(m.get('RW')), m.get('Name')) for m in inspected.get('Mounts',[])}
         expected = set()
         for m in mounts:
             if isinstance(m,str):
                 fields = dict(x.split('=',1) for x in m.split(',') if '=' in x)
-                expected.add((fields.get('dst') or fields.get('target') or fields.get('destination'), 'readonly' not in m.split(',')))
+                expected.add((fields.get('dst') or fields.get('target') or fields.get('destination'),
+                              'readonly' not in m.split(','), fields.get('src') or fields.get('source')))
             else:
-                expected.add((m['destination'], not m.get('readonly',False)))
+                expected.add((m['destination'], not m.get('readonly',False), m.get('source') or m.get('name')))
         checks['mounts'] = actual == expected
     enforcement = {'enforced': bool(resources_enforced), 'requested': {}, 'actual': {}}
     if resources:

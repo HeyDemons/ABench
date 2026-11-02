@@ -28,6 +28,8 @@ class DockerAgentTest(unittest.TestCase):
         (self.paths['view']/'task.md').write_text('test task\n')
         self.args=SimpleNamespace(case='TC-FT-001',run_id='integration-test',gpus=None,network='none')
         self.oj=yaml.safe_load((ROOT/'cases/TC-FT-001/case/oj.yaml').read_text())
+        # Docker refuses more CPUs than the host has, and a GitHub runner has 4; the checks do not depend on it.
+        self.oj['resources']={**self.oj['resources'],'cpus':2}
         self.environment=None
 
     def tearDown(self):
@@ -88,3 +90,52 @@ open('/abench/workspace/submission/result.txt','w').write('blocked')
         self.assertEqual(self.execute("import os; os.symlink('/etc/passwd','/abench/workspace/submission/stolen')")[0],'succeeded')
         with self.assertRaises(ValueError):
             self.environment.collect()
+
+    def test_task_workspace_and_processes_do_not_cross_into_evaluation(self):
+        sys.path.insert(0, str(ROOT / 'tools/harness_kit'))
+        import abench_stage
+        from judge_container import DockerStageLauncher
+        from agents.workspace import resource_limits
+        record = self.start()
+        limits = resource_limits(self.oj, record, 10)['limits']
+        # The recorded limits are the ones the container's cgroup enforces.
+        code = f"""import pathlib,subprocess,sys
+assert {limits['memory_bytes']}==int(pathlib.Path('/sys/fs/cgroup/memory.max').read_text())
+quota,period=map(int,pathlib.Path('/sys/fs/cgroup/cpu.max').read_text().split())
+assert {limits['cpu_cores']}==quota/period
+pathlib.Path('/abench/workspace/task-only.txt').write_text('private scratch')
+pathlib.Path('/tmp/task-only.txt').write_text('private temporary file')
+pathlib.Path('/abench/workspace/submission/answer.txt').write_text('42')
+subprocess.Popen([sys.executable,'-c','import time; time.sleep(300)'], start_new_session=True,
+                 stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+"""
+        self.assertEqual(self.execute(code,env={'TASK_ONLY_ENV':'private'})[0], 'succeeded')
+        collected = self.environment.collect()
+        self.assertFalse(self.environment.docker.inspect(self.environment.cid)['State']['Running'])
+        self.environment.close()
+        stages = self.root/'harness/stages.py'
+        stages.parent.mkdir()
+        stages.write_text('''import os
+from pathlib import Path
+import numpy as np
+from abench_stage import Stage
+PARAMS = {}
+PIPELINE = [{'stage':'check','timeout':30,'finish_cap':10,'threads':1}]
+def timed(ctx, state):
+    assert not Path('/abench/workspace/task-only.txt').exists()
+    assert not Path('/tmp/task-only.txt').exists()
+    assert not Path('/abench/control').exists()
+    assert 'TASK_ONLY_ENV' not in os.environ
+    return int((ctx.submission/'answer.txt').read_text())
+STAGES = {'check':Stage(timed=timed,finish=lambda ctx,value:{'answer':np.array([value])})}
+''')
+        resources = dict(gpus=0, cpus=1, memory='1g', shm_size='64m', pids=128, budget_tier='budget')
+        launcher = DockerStageLauncher(os.environ['ABENCH_TEST_IMAGE'], resources)
+        try:
+            result = abench_stage.run_pipeline(abench_stage.load_module(stages,'phase_boundary'), stages,
+                collected['submission'], self.root/'judge', public=None,models=None,held_out=None,
+                seed=1,device='cpu',launcher=launcher)
+            self.assertEqual(result['status'], 'ok', result)
+            self.assertEqual(result['outputs']['check']['answer'].tolist(), [42])
+        finally:
+            launcher.close_inputs()

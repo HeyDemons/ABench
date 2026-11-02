@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import stat
@@ -9,6 +10,7 @@ import sys
 import tempfile
 import types
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -59,6 +61,54 @@ class SourceVerification(unittest.TestCase):
         with mock.patch.object(run, "_hf_expected", return_value={"git_sha1": blob}):
             rows = run.verify_sources(module(["a.parquet"]), self.raw, allow_unverified=False)
         self.assertEqual(rows[0]["status"], "verified")
+
+    def test_directory_metadata_is_shared_but_file_contents_are_checked(self):
+        names = [f"part-{i}.parquet" for i in range(104)]
+        for name in names:
+            (self.raw / name).write_bytes(b"alpha")
+        listing = [{"path": "d/" + name, "lfs": {"oid": self.sha}} for name in names]
+        with mock.patch.object(run, "_get_json", return_value=listing) as get, redirect_stdout(io.StringIO()):
+            rows = run.verify_sources(module(names), self.raw, allow_unverified=False)
+            self.assertEqual(len(rows), 104)
+            self.assertEqual(get.call_count, 1)
+            (self.raw / names[-1]).write_bytes(b"changed")
+            with self.assertRaisesRegex(SystemExit, "source verification failed"):
+                run.verify_sources(module(names), self.raw, allow_unverified=True)
+            self.assertEqual(get.call_count, 2)       # a separate verification fetches fresh metadata
+
+    def test_metadata_cache_distinguishes_repository_revision_and_directory(self):
+        directories = {}
+        def listing(url):
+            directory = "e" if url.endswith("/e") else "d"
+            return [{"path": directory + "/a.parquet", "lfs": {"oid": url}}]
+        with mock.patch.object(run, "_get_json", side_effect=listing) as get:
+            args = [(True, "o/r", REV, "d/a.parquet"), (False, "o/r", REV, "d/a.parquet"),
+                    (True, "o/r", "a" * 40, "d/a.parquet"), (True, "o/other", REV, "d/a.parquet"),
+                    (True, "o/r", REV, "e/a.parquet")]
+            values = [run._hf_expected(*arg, directories=directories)["sha256"] for arg in args]
+            self.assertEqual(len(set(values)), 5)
+            self.assertEqual(get.call_count, 5)
+            self.assertEqual(run._hf_expected(*args[0], directories=directories)["sha256"], values[0])
+            self.assertEqual(get.call_count, 5)
+
+    def test_large_git_blob_digest_remains_compatible_without_whole_file_read(self):
+        body = b"alpha" * (1 << 19)
+        path = self.raw / "large.bin"
+        path.write_bytes(body)
+        expected = hashlib.sha1(b"blob %d\0" % len(body) + body).hexdigest()
+        with mock.patch.object(Path, "read_bytes", side_effect=AssertionError("whole-file read")):
+            self.assertEqual(run._git_blob_sha1(path), expected)
+
+    def test_published_md5_still_rejects_changed_bytes(self):
+        source = types.SimpleNamespace(SOURCES=[{"name": "a.parquet", "checksum_url": "https://example.org/md5"}])
+        checksum = hashlib.md5(b"alpha").hexdigest().encode()
+        with mock.patch("urllib.request.urlopen", side_effect=lambda *a, **k: io.BytesIO(checksum)), \
+                mock.patch.object(Path, "read_bytes", side_effect=AssertionError("whole-file read")):
+            rows = run.verify_sources(source, self.raw, allow_unverified=False)
+            self.assertEqual(rows[0]["status"], "verified")
+            (self.raw / "a.parquet").write_bytes(b"changed")
+            with self.assertRaisesRegex(SystemExit, "source verification failed"):
+                run.verify_sources(source, self.raw, allow_unverified=True)
 
 
 class SeedEscrow(unittest.TestCase):

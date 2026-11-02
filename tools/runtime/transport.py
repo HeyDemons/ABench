@@ -7,7 +7,6 @@ import os
 from pathlib import Path, PurePosixPath
 import subprocess
 import tarfile
-import tempfile
 import uuid
 
 class DockerError(RuntimeError):
@@ -121,6 +120,17 @@ class Docker:
             stderr = result.stderr if text else result.stderr.decode(errors='replace')
             raise DockerError(f'docker {args[0]} failed: {stderr.strip()}')
         return result
+    def run_to_file(self, args, path, *, timeout=120):
+        """Run a Docker command with its stdout written to path, not held in memory; returns (returncode, stderr)."""
+        with open(path, 'wb') as out:
+            try:
+                result = subprocess.run([self.executable, *map(str, args)], stdout=out, stderr=subprocess.PIPE,
+                                        timeout=timeout, start_new_session=True)
+            except subprocess.TimeoutExpired as exc:
+                raise DockerTimeout(str(exc)) from exc
+            except OSError as exc:
+                raise DockerError(str(exc)) from exc
+        return result.returncode, result.stderr.decode(errors='replace')
     def info(self):
         data = json.loads(self.run(['info', '--format', '{{json .}}']).stdout)
         return {'rootless': any('rootless' in x for x in data.get('SecurityOptions', [])),
@@ -209,6 +219,8 @@ class Docker:
                 return 0.0
             moment = datetime.fromisoformat(match[1] + ('+00:00' if match[2] == 'Z' else match[2]))
             return (datetime.now(timezone.utc) - moment).total_seconds()
+        from agents.lifecycle import protected_objects
+        retained = protected_objects(self)
         removed = {}
         for kind in ['container', 'network', 'volume']:
             if run_id:
@@ -231,6 +243,8 @@ class Docker:
                         ids.append(oid)
             gone = []
             for oid in ids:
+                if oid in retained.get(kind + 's', ()):
+                    continue
                 result = self.run(['rm', '-f', '-v', oid] if kind == 'container' else [kind, 'rm', oid], check=False)
                 if result.returncode == 0:       # an in-use volume or network is refused by Docker and kept
                     gone.append(oid)

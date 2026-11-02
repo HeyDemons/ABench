@@ -31,8 +31,8 @@ def resolve(agent, name=None, base_url=None, allow_private=False, oj=None, path=
     elif environment and environment.rstrip("/") != cfg["base_url"].rstrip("/"):
         if explicit:
             # Records and reports name the configuration; silently sending it elsewhere would mislabel results.
-            raise ValueError(f"ANTHROPIC_BASE_URL ({environment}) contradicts model configuration {name!r} "
-                             f"({cfg['base_url']}); unset it, choose the matching --model, or pass --base-url")
+            raise ValueError(f"ANTHROPIC_BASE_URL contradicts model configuration {name!r}; "
+                             "unset it, choose the matching --model, or pass --base-url")
         cfg["base_url"], source = environment, "environment"
     u = urlsplit(cfg["base_url"])
     if u.scheme != "https" or not u.hostname or u.username or u.password or u.fragment or u.query:

@@ -10,7 +10,6 @@ case/oj.yaml. The judge refuses to run unless the files on disk match those hash
 """
 from __future__ import annotations
 
-import hashlib
 import io
 import shutil
 import urllib.request
@@ -18,6 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
+from file_hashes import md5_file, sha256_file, tree_hash
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -37,32 +37,6 @@ def npz_bytes(**arrays) -> bytes:
     buf = io.BytesIO()
     np.savez(buf, **arrays)
     return buf.getvalue()
-
-
-def sha256_file(p: Path) -> str:
-    h = hashlib.sha256()
-    with open(p, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def md5_file(p: Path) -> str:
-    h = hashlib.md5()
-    with open(p, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def tree_hash(root: Path) -> str:
-    """Same definition as tools/oj_eval.py tree_hash."""
-    h = hashlib.sha256()
-    for p in sorted(x for x in root.rglob("*")
-                    if x.is_file() and not x.is_symlink() and "__pycache__" not in x.parts and x.suffix != ".pyc"):
-        h.update(p.relative_to(root).as_posix().encode() + b"\0")
-        h.update(hashlib.sha256(p.read_bytes()).digest())
-    return h.hexdigest()
 
 
 def check(p: Path, md5: str | None = None, sha256: str | None = None) -> str:

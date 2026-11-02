@@ -9,8 +9,8 @@ import time
 import uuid
 
 from containers import Docker, DockerError, DockerPathMissing
-from container_policy import create_options, resources_for, verify_inspect
-from runtime.cleanup import cleanup_objects, shielded
+from container_policy import create_options, host_scaled, resources_for, verify_inspect
+from runtime.cleanup import cleanup_objects, shielded, stop_container
 
 LOG_MAX_BYTES = 64 * 1024**2      # a stage log only feeds the record's tails; outputs keep their own, larger cap
 
@@ -18,10 +18,12 @@ LOG_MAX_BYTES = 64 * 1024**2      # a stage log only feeds the record's tails; o
 class DockerStageLauncher:
     def __init__(self, image, resources, *, gpus=None, locked=False, docker=None, run_id=None):
         self.image, self.resources, self.gpus, self.locked = image, resources, gpus, locked
+        self.lock = 'published' if locked else None
         # The agent run's id, so `abench gc --run-id` also finds this run's judge objects.
         self.labels = {'abench.run_id': run_id} if run_id else {}
         self.docker = docker or Docker()
         self.docker_info = self.docker.info()
+        self.resources = host_scaled(self.resources, self.docker_info)
         self.platform = self.docker_info['platform']
         self.resources_enforced = self.docker_info.get('resources_enforced', True)
         actual_image = self.docker.inspect(image)
@@ -59,6 +61,12 @@ class DockerStageLauncher:
         if cpu_override:
             resources = {**resources,'gpus':0}
         launcher = cls(reference, resources, gpus=gpus, locked=locked, run_id=run_id)
+        if not locked:
+            from images import local_lock
+            entry = local_lock(profile, platform=launcher.platform)
+            if entry and entry.get('image_id') == launcher.image_id:
+                # A host-local lock names this exact image ID: it scores, recorded as unpublished.
+                launcher.locked, launcher.lock = True, 'local'
         if cpu_override:
             launcher.hardware_matches = False
             launcher.hardware_reason = 'CPU validation override of a GPU case'
@@ -138,6 +146,7 @@ class DockerStageSession:
         self.launcher, self.docker, self.work = launcher, launcher.docker, Path(work)
         self.run_id = 'judge-' + uuid.uuid4().hex
         self.container = self.input_volume = None
+        self.stopped = None             # the container close() confirmed stopped
         self.helpers = []
         self.proc = None
         self.record = {}
@@ -209,6 +218,22 @@ class DockerStageSession:
 
     @shielded()
     def close(self):
+        if self.container:
+            try:
+                state = stop_container(self.docker, self.container)
+                self.stopped = self.container
+                self.record['stopped_before_collection'] = True
+                self.record['container_oom_killed'] = bool(state.get('OOMKilled'))
+            except Exception as exc:
+                self.record['stop_error'] = str(exc)
+                self._remove()
+                if self.proc and self.proc.poll() is None:
+                    try:
+                        self.proc.kill()
+                        self.proc.wait(timeout=5)
+                    except Exception as reap_error:
+                        self.record['reap_error'] = str(reap_error)
+                return  # collection independently refuses a missing or still-running container
         if self.proc and self.proc.poll() is None:
             try:
                 self.docker.kill(self.container)
@@ -225,6 +250,11 @@ class DockerStageSession:
 
     def collect(self):
         try:
+            if self.container is None:
+                raise DockerError('judge container removed before output collection')
+            if self.stopped != self.container:
+                stop_container(self.docker, self.container)
+                self.record['stopped_before_collection'] = True
             started = time.perf_counter()
             stage = self.stage
             names = [f'{stage}.out.npz', f'{stage}.meta.json', '_stdout.txt', '_stderr.txt', *self.artifacts]

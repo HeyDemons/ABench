@@ -5,6 +5,7 @@ sandbox/data
 sandbox/hidden
 sandbox/models
 sandbox/judge_models
+sandbox/.prepare
 **/__pycache__
 **/node_modules
 **/.venv
@@ -12,3 +13,8 @@ sandbox/judge_models
 **/*.key
 **/*.enc
 .env
+.env.*
+!.env.example
+spec/env/images.local.lock.yaml
+spec/env/.image-locks.lock
+exports

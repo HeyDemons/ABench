@@ -26,18 +26,21 @@ ROOT = Path(__file__).resolve().parents[1]
 TOOLS = Path(__file__).resolve().parent
 sys.path.insert(0, str(TOOLS))
 import hidden_store  # noqa: E402
+from file_hashes import sha256_file, tree_hash  # noqa: E402
 from validate_submission import validate_submission_dir  # noqa: E402
 
 JUDGE_VERSION = "abench-oj-judge-v2.1"
 
 
-def _dependency_attestation(image: str | None = None, locked: bool = False) -> dict[str, Any]:
-    """A locked image and the host tools tree are both required for scoreability."""
+def _dependency_attestation(image: str | None = None, locked: bool = False, lock: str | None = None) -> dict[str, Any]:
+    """A locked image (published digest, or a host-local image ID lock) and the host tools tree are both required
+    for scoreability."""
     expected = os.environ.get("ABENCH_JUDGE_TOOLS_SHA256", "").lower()
     actual = tree_hash(TOOLS)
     tools_attested = bool(expected) and expected == actual
     return {"source": "container_image" if image else "interpreter_default", "image": image, "paths": [],
             "trusted": bool(image and locked and tools_attested), "image_locked": bool(locked),
+            "image_lock": lock if locked else None,
             "tools_sha256": actual, "tools_sha256_expected": expected or None, "tools_attested": tools_attested}
 
 
@@ -59,15 +62,6 @@ def sha256_bytes(b: bytes) -> str:
     return hashlib.sha256(b).hexdigest()
 
 
-def tree_hash(root: Path) -> str:
-    h = hashlib.sha256()
-    for p in sorted(x for x in root.rglob("*")
-                    if x.is_file() and not x.is_symlink() and "__pycache__" not in x.parts and x.suffix != ".pyc"):
-        h.update(p.relative_to(root).as_posix().encode() + b"\0")
-        h.update(hashlib.sha256(p.read_bytes()).digest())
-    return h.hexdigest()
-
-
 def load_oj(case: str) -> dict[str, Any]:
     p = ROOT / "cases" / case / "case" / "oj.yaml"
     if not p.is_file():
@@ -84,7 +78,7 @@ def _verify_public(case: str, oj: dict[str, Any]) -> Path | None:
     root = (ROOT / pdir).resolve()
     for f in data.get("public") or []:
         p = ROOT / f["path"]
-        if not p.is_file() or sha256_bytes(p.read_bytes()) != f["sha256"]:
+        if not p.is_file() or sha256_file(p) != f["sha256"]:
             raise SystemExit(f"public data hash mismatch: {f['path']}")
     return root
 
@@ -289,20 +283,18 @@ def evaluate(case: str, submission: Path, key_file: Path | None, run_mode: str =
     backend = backend or os.environ.get("ABENCH_JUDGE_BACKEND", "host")
     launcher = None
     locked = False
+    lock = None
     if backend == "docker" and run_mode != "smoke":
         from judge_container import DockerStageLauncher
         launcher = DockerStageLauncher.for_case(oj, gpus=gpus, image=image, run_id=run_id)
-        image, locked = launcher.image, launcher.locked
+        image, locked, lock = launcher.image, launcher.locked, getattr(launcher, "lock", None)
     elif backend not in ("host","docker"):
         raise SystemExit(f"unsupported judge backend {backend!r}")
-    dependency = _dependency_attestation(image, locked) if launcher else _dependency_attestation()
+    dependency = _dependency_attestation(image, locked, lock) if launcher else _dependency_attestation()
     rec: dict[str, Any] = {"schema_version": "2.0", "case_id": case, "judge_version": JUDGE_VERSION,
                            "provenance": "judge_real", "run_mode": run_mode,
-                           # The parent evaluator and predictor currently run
-                           # under the operator account.  Keep this explicit
-                           # so a benchmark record cannot be mistaken for a
-                           # fully container-isolated judge.
-                           "judge_isolation": "host_soft",
+                           # Format-only rejection, smoke and pending cases execute no submission stage.
+                           "judge_isolation": "not_started", "judge_backend_requested": backend,
                            "scorable": run_mode == "benchmark",
                            "judge_dependency": dependency,
                            "submission_tree_sha256": tree_hash(submission),
@@ -367,7 +359,7 @@ def evaluate(case: str, submission: Path, key_file: Path | None, run_mode: str =
         if not launcher.resources_enforced:
             rec['scorable'] = False
             rec['scoreability_reason'] = '; '.join(filter(None,[rec.get('scoreability_reason'),'judge resource limits are not enforced']))
-        rec["judge_isolation_detail"] = {"backend": "docker", "image": image, "image_locked": locked,
+        rec["judge_isolation_detail"] = {"backend": "docker", "image": image, "image_locked": locked, "image_lock": lock,
                                          "containers": launcher.records, "inputs": launcher.input_record}
         if launcher.platform != "linux/amd64":
             rec["scorable"] = False

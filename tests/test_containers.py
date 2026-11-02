@@ -33,11 +33,60 @@ class ArchiveTest(unittest.TestCase):
             safe_extract(make_tar(td),out)
             self.assertEqual((Path(out)/'x').read_text(),'hello')
 class PolicyTest(unittest.TestCase):
+    def guide(self, case):
+        import yaml
+        from validate_task_statement import sections
+        root = Path(__file__).resolve().parents[1]/'cases'/case/'case'
+        return sections((root/'agent/task.md').read_text())['Sandbox Guide'], yaml.safe_load((root/'oj.yaml').read_text())
+
+    def test_every_sandbox_guide_states_the_allocation_of_oj_yaml(self):
+        from validate_task_statement import allocation_issues
+        for path in sorted((Path(__file__).resolve().parents[1]/'cases').glob('*/case/oj.yaml')):
+            with self.subTest(case=path.parts[-3]):
+                self.assertEqual(allocation_issues(*self.guide(path.parts[-3])), [])
+
+    def test_a_guide_that_disagrees_with_oj_yaml_is_reported(self):
+        from validate_task_statement import allocation_issues
+        guide, oj = self.guide('TC-FT-001')
+        for old, new, field in [('8 CPU cores', '4 CPU cores', 'CPU cores'), ('at most 3 hours', 'at most 2 hours', 'session'),
+                                ('capped at 8 CPU-core-hours', 'capped at 3 CPU-core-hours', 'agent_budget.cpu_core_hours'),
+                                ('no GPU', 'one GPU', 'GPUs'), ('no GPU', 'no GPU, 2 GiB RAM', 'RAM bytes'),
+                                ('capped at 8 CPU-core-hours', 'capped at an unspecified amount', 'cannot read')]:
+            with self.subTest(field=field):
+                self.assertIn(old, guide)
+                issues = allocation_issues(guide.replace(old, new), oj)
+                self.assertTrue(issues and all(field in issue for issue in issues), issues)
+
+    def test_gpu_count_comes_from_the_hardware_label_and_vram_is_not_ram(self):
+        from validate_task_statement import allocation_issues
+        guide, oj = self.guide('PRO-ARL-001')
+        self.assertEqual(allocation_issues(guide.replace('in one node', 'in one node, one GPU per rank'), oj), [])
+        guide, oj = self.guide('IC-SPD-001')
+        self.assertIn('24GB reference GPU', guide)          # VRAM, not a container RAM statement
+        self.assertEqual(allocation_issues(guide, oj), [])
+        self.assertIn('GPUs', allocation_issues(guide.replace('One 24GB reference GPU', '2 24GB reference GPUs'), oj)[0])
+
     def test_secure_flags(self):
         args=create_options({'cpus':8,'memory':'16g','pids':1024,'shm_size':'2g','gpus':0})
         for flag in ['--network','--cap-drop','--security-opt','--user','--init','--pids-limit','--memory','--cpus']:
             self.assertIn(flag,args)
         self.assertIn('none',args);self.assertIn('1000:1000',args)
+    def test_cpu_memory_shm_and_processes_scale_to_the_host_as_on_the_original_runner(self):
+        from container_policy import host_scaled, bytes_value
+        declared=resources_for(self.guide('DS-GBM-001')[1])
+        info={'raw':{'MemTotal':100*1024**3,'NCPU':64}}
+        scaled=host_scaled(declared,info)
+        self.assertEqual((scaled['cpus'],scaled['memory'],scaled['shm_size'],scaled['pids']),(64,90*1024**3,45*1024**3,65536))
+        self.assertEqual(scaled['gpus'],declared['gpus'])
+        self.assertEqual(host_scaled(declared,{}),declared)
+        odd=host_scaled(declared,{'raw':{'MemTotal':100*1024**3+12345,'NCPU':4}})
+        self.assertEqual((odd['memory']%2**20,odd['shm_size']%2**20),(0,0))
+        args=create_options(scaled)
+        self.assertEqual(args[args.index('--memory')+1],str(90*1024**3))
+        inspected={'HostConfig':{'Memory':int(args[args.index('--memory')+1]),'ShmSize':bytes_value(args[args.index('--shm-size')+1]),
+                                 'PidsLimit':int(args[args.index('--pids-limit')+1]),'NanoCpus':int(float(scaled['cpus'])*1e9)}}
+        checks=verify_inspect(inspected,resources=scaled)['checks']
+        self.assertTrue(all(checks[k] for k in ('memory','shm_size','pids','cpus')))
     def test_reject_missing_resources(self):
         with self.assertRaises(ValueError):resources_for({'environment':{'profile':'cpu-sci'}})
     def test_inspect_fail_closed(self):
@@ -57,6 +106,14 @@ class GPUInspectTest(unittest.TestCase):
         self.assertFalse(verify_inspect(inspected,gpus=['3'])['verified'])
         inspected['HostConfig']['DeviceRequests'][0]['Count']=-1
         self.assertFalse(verify_inspect(inspected,gpus=['2'])['verified'])
+
+    def test_mount_must_be_the_expected_volume_not_only_the_expected_path(self):
+        inspected = self.base()
+        inspected['Mounts'] = [{'Type': 'volume', 'Name': 'judge-input', 'Destination': '/abench/view', 'RW': False}]
+        mounts = ['type=volume,src=judge-input,dst=/abench/view,readonly']
+        self.assertTrue(verify_inspect(inspected, mounts=mounts)['verified'])
+        inspected['Mounts'][0]['Name'] = 'agent-workspace'
+        self.assertFalse(verify_inspect(inspected, mounts=mounts)['checks']['mounts'])
     def test_cdi_selection_and_extra_device(self):
         inspected=self.base();inspected['HostConfig']['Devices']=[{'PathOnHost':'nvidia.com/gpu=2'}]
         self.assertTrue(verify_inspect(inspected,gpus=['2'])['verified'])

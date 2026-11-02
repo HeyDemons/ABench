@@ -16,6 +16,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 from leak_check import leak_allow, leaky  # noqa: E402
+from container_policy import bytes_value, resources_for  # noqa: E402
 
 SECTIONS = ["Task", "Data", "Interface", "Metrics", "Evaluation", "Sandbox Guide", "Deliverables", "Rules"]
 
@@ -33,6 +34,42 @@ def sections(md: str) -> dict[str, str]:
     if cur:
         out[cur] = "\n".join(buf)
     return out
+
+
+def allocation_issues(guide: str, oj: dict) -> list[str]:
+    """The Sandbox Guide must state what the runner applies from oj.yaml: session length, development compute
+    allowance, GPU count and, when stated, CPU cores and RAM. A GPU's VRAM ('24GB reference GPU') is not RAM."""
+    session = re.search(r"session lasts at most ([0-9.]+) hours?", guide, re.I)
+    compute = re.search(r"(?:Compute|GPU usage) during development is capped at ([0-9.]+) (CPU-core|GPU|H100)-hours?",
+                        guide, re.I)
+    if not session or not compute:
+        return ["Sandbox Guide: cannot read the session length or the development compute allowance"]
+    try:
+        resources = resources_for(oj)
+    except ValueError as exc:
+        return [f"oj.yaml: {exc}"]
+    # The hardware label is the first bullet up to its first ';' (build_standard_cases.HARDWARE).
+    hardware = next((line for line in guide.splitlines() if line.startswith("- ")), "").split(";")[0]
+    if m := re.search(r"\b(\d+)\s*[×x]\s*H100\b", hardware):
+        gpus = int(m[1])
+    elif re.search(r"\bno GPU\b", hardware, re.I):
+        gpus = 0
+    elif m := re.search(r"\b(one|\d+)\b[^;]*?\bGPUs?\b", hardware, re.I):
+        gpus = 1 if m[1].lower() == "one" else int(m[1])
+    else:
+        return ["Sandbox Guide: cannot read the GPU allocation"]
+    budget = oj.get("agent_budget") or {}
+    key = {"cpu-core": "cpu_core_hours", "gpu": "gpu_hours", "h100": "h100_hours"}[compute[2].lower()]
+    stated = {"session hours": (float(session[1]), resources["wall_clock_limit_h"]),
+              f"agent_budget.{key}": (float(compute[1]), budget.get(key)), "GPUs": (gpus, resources.get("gpus"))}
+    if "session_hours" in budget:
+        stated["agent_budget.session_hours"] = (float(session[1]), budget["session_hours"])
+    if m := re.search(r"\b(\d+) CPU cores\b", hardware, re.I):
+        stated["CPU cores"] = (int(m[1]), resources.get("cpus"))
+    if m := re.search(r"\b([0-9.]+)\s*([KMGT]i?B)\s+(?:of\s+)?(?:RAM|system memory)\b", hardware, re.I):
+        stated["RAM bytes"] = (bytes_value(m[1] + m[2]), bytes_value(resources["memory"]))
+    return [f"Sandbox Guide states {name} {said}, oj.yaml has {applied}"
+            for name, (said, applied) in stated.items() if applied is None or float(said) != float(applied)]
 
 
 def check_case(cid: str) -> dict:
@@ -64,7 +101,8 @@ def check_case(cid: str) -> dict:
                           (r"[Nn]etwork", "network restrictions"), (r"GPU|CPU", "hardware"), (r"selfcheck|self-check", "self-check command")):
             if not re.search(need, guide):
                 issues.append(f"Sandbox Guide: missing {msg}")
-    task = sec.get("Task", "")
+        issues += allocation_issues(guide, oj)
+    task =sec.get("Task", "")
     if task:
         # v2.1 working procedure: retrieval with the offline paper tool, related-work synthesis, a stated list of
         # changes relative to the anchor, and development with the self-check

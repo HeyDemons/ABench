@@ -18,6 +18,22 @@ class ScoreabilityTest(unittest.TestCase):
             result=oj_eval.evaluate('TC-FT-001',Path(raw),None,'smoke',backend='docker')
         self.assertEqual(result['verdict'],'smoke_unscored')
         self.assertFalse(result['scorable'])
+        self.assertEqual(result['judge_isolation'], 'not_started')
+        self.assertEqual(result['judge_backend_requested'], 'docker')
+
+    def test_invalid_submission_does_not_claim_host_execution(self):
+        launcher = SimpleNamespace(image='image', locked=False)
+        with tempfile.TemporaryDirectory() as raw, \
+             mock.patch.object(oj_eval,'load_oj',return_value={'judge':{'kind':'harness'}}), \
+             mock.patch.object(oj_eval,'validate_submission_dir',return_value=['invalid report']), \
+             mock.patch.object(oj_eval,'_environment_check',return_value={'matches':False}), \
+             mock.patch('judge_container.DockerStageLauncher.for_case',return_value=launcher), \
+             mock.patch.object(oj_eval,'evaluate_harness') as execute:
+            result = oj_eval.evaluate('TC-FT-001',Path(raw),None,backend='docker')
+        self.assertEqual(result['verdict'], 'submission_invalid')
+        self.assertEqual(result['judge_isolation'], 'not_started')
+        self.assertEqual(result['judge_backend_requested'], 'docker')
+        execute.assert_not_called()
 
     def test_pipeline_calibration_is_excluded_even_with_trusted_images(self):
         launcher=SimpleNamespace(image='image@sha256:'+'a'*64,locked=True)
@@ -97,7 +113,7 @@ class HarnessIdentityAttestationTest(unittest.TestCase):
                   'network': {'mode': 'none'}, 'budget': {'over_budget': False},
                   'sandbox': {'backend': 'docker', 'verified': True, 'resources_enforced': True,
                               'platform': 'linux/amd64', 'image_attestation': {'locked': True},
-                              'hardware_matches': True}}
+                              'harness_bundle': {'locked': True, 'lock': 'local'}, 'hardware_matches': True}}
         for harness in HARNESSES:
             record['harness'] = harness
             for proof in (None, {'verified': True, 'requested_version': '1', 'actual_version': '0'},
@@ -108,6 +124,11 @@ class HarnessIdentityAttestationTest(unittest.TestCase):
                 self.assertIn('actual harness CLI version not verified', result['scoreability_reason'])
             record['sandbox']['harness_cli_version'] = {'verified': True, 'requested_version': '1', 'actual_version': '1'}
             self.assertTrue(apply_agent_attestation({'scorable': True}, record)['scorable'])
+            # the CLI must come from the bundle locked on this host
+            record['sandbox']['harness_bundle'] = {'locked': False}
+            result = apply_agent_attestation({'scorable': True}, record)
+            self.assertIn('harness CLI bundle is not the one locked', result['scoreability_reason'])
+            record['sandbox']['harness_bundle'] = {'locked': True, 'lock': 'local'}
             record['sandbox']['cleanup'] = {'remaining': {'containers': ['cid'], 'volumes': []}}
             result = apply_agent_attestation({'scorable': True}, record)
             self.assertFalse(result['scorable'])

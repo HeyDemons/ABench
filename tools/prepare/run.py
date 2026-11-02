@@ -13,23 +13,26 @@ Writes sandbox/data/<ID>/*.npz (public), sandbox/hidden/<ID>/hidden.npz.enc (enc
 from __future__ import annotations
 
 import argparse
+from contextlib import ExitStack
 import importlib
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import yaml
+import numpy as np
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(HERE.parent))
 import hidden_store  # noqa: E402
-from prepare.common import Frozen, npz_bytes, sha256_file, tree_hash  # noqa: E402
-import hashlib  # noqa: E402
+from file_hashes import git_blob_sha1 as _git_blob_sha1  # noqa: E402
+from prepare.common import Frozen, md5_file, sha256_file, tree_hash  # noqa: E402
 
 
 HF_RESOLVE = re.compile(r"^https://huggingface\.co/(datasets/)?([^/]+/[^/]+)/resolve/([0-9a-f]{40})/(.+)$")
@@ -43,19 +46,20 @@ def _get_json(url: str):
         return json.loads(r.read().decode())
 
 
-def _git_blob_sha1(p: Path) -> str:
-    b = p.read_bytes()
-    return hashlib.sha1(b"blob %d\0" % len(b) + b).hexdigest()
-
-
-def _hf_expected(dataset: bool, repo: str, rev: str, path: str) -> dict:
+def _hf_expected(dataset: bool, repo: str, rev: str, path: str, *, directories: dict | None = None) -> dict:
     """Hashes Hugging Face records for one file at a pinned revision: LFS sha256, or the git blob sha1."""
     import posixpath
     d = posixpath.dirname(path)
     api = f"https://huggingface.co/api/{'datasets/' if dataset else 'models/'}{repo}/tree/{rev}" + (f"/{d}" if d else "")
-    for e in _get_json(api):
-        if e.get("path") == path:
-            return {"sha256": (e.get("lfs") or {}).get("oid"), "git_sha1": e.get("oid"), "size": e.get("size")}
+    directories = directories if directories is not None else {}
+    if api not in directories:
+        entries = {}
+        for entry in _get_json(api):
+            entries.setdefault(entry.get("path"), entry)
+        directories[api] = entries
+    entry = directories[api].get(path)
+    if entry is not None:
+        return {"sha256": (entry.get("lfs") or {}).get("oid"), "git_sha1": entry.get("oid"), "size": entry.get("size")}
     raise SystemExit(f"{path} not found at {repo}@{rev}")
 
 
@@ -72,15 +76,17 @@ def verify_sources(mod, raw: Path, allow_unverified: bool) -> list[dict]:
     published checksum file (checksum_url). md5/sha256 given in SOURCES are checked by the case module itself."""
     import urllib.request
     out = []
+    # A pinned directory listing serves all files in it. Keep it local to this verification so a later
+    # invocation still contacts the publisher and independently verifies every local file's bytes.
+    directories = {}
     for s in getattr(mod, "SOURCES", []):
         url, name = s.get("url") or "", s.get("name") or ""
         targets = []
-        m = HF_RESOLVE.match(url)
-        if m:
-            targets.append((name, bool(m.group(1)), m.group(2), m.group(3), m.group(4)))
-        m = HF_TREE.match(url)
-        if m and s.get("files"):
-            targets += [(f"{name.rstrip('/')}/{f}", bool(m.group(1)), m.group(2), m.group(3), f) for f in s["files"]]
+        from prepare.sources import files as source_files
+        for resolved_url, raw_path, _ in source_files(s):
+            m = HF_RESOLVE.match(resolved_url)
+            if m:
+                targets.append((raw_path, bool(m.group(1)), m.group(2), m.group(3), m.group(4)))
         for local_name, ds, repo, rev, path in targets:
             p = _locate(raw, local_name)
             row = {"file": local_name, "source": f"{repo}@{rev[:12]}/{path}"}
@@ -88,7 +94,7 @@ def verify_sources(mod, raw: Path, allow_unverified: bool) -> list[dict]:
                 row["status"] = "raw file not found"
             else:
                 try:
-                    exp = _hf_expected(ds, repo, rev, path)
+                    exp = _hf_expected(ds, repo, rev, path, directories=directories)
                     if exp.get("sha256"):
                         ok = sha256_file(p) == exp["sha256"]
                         row.update(check="lfs sha256", ok=ok)
@@ -100,12 +106,12 @@ def verify_sources(mod, raw: Path, allow_unverified: bool) -> list[dict]:
                     row["status"] = f"unverified ({type(e).__name__}: {e})"
             out.append(row)
         if s.get("checksum_url"):
-            p = _locate(raw, name)
+            p = _locate(raw, s.get('raw_path') or name)
             row = {"file": name, "source": s["checksum_url"]}
             try:
                 with urllib.request.urlopen(s["checksum_url"], timeout=60) as r:
                     want = re.findall(r"\b[0-9a-f]{32}\b", r.read().decode())[0]
-                got = hashlib.md5(p.read_bytes()).hexdigest() if p else None
+                got = md5_file(p) if p else None
                 row.update(check="published md5", ok=got == want, status="verified" if got == want else "MISMATCH")
             except (OSError, IndexError, ValueError) as e:
                 row["status"] = f"unverified ({type(e).__name__}: {e})"
@@ -141,57 +147,103 @@ def module_for(case: str):
     return importlib.import_module("prepare." + case.lower().replace("-", "_"))
 
 
-def freeze(case: str, fz: Frozen, key_file: Path, synthetic: bool) -> dict:
-    pub_dir = ROOT / "sandbox" / "data" / case
-    hid_path = ROOT / "sandbox" / "hidden" / case / "hidden.npz.enc"
-    mod_dir = ROOT / "sandbox" / "models" / case
+def _write_frozen(case: str, fz: Frozen, key_file: Path, synthetic: bool, storage: Path) -> dict:
+    pub_dir = storage / "sandbox" / "data" / case
+    hid_path = storage / "sandbox" / "hidden" / case / "hidden.npz.enc"
+    mod_dir = storage / "sandbox" / "models" / case
     for d in (pub_dir, hid_path.parent):
         if d.exists():
             shutil.rmtree(d)
         d.mkdir(parents=True)
     lock: dict = {"case_id": case, "synthetic": bool(synthetic), "activation": "awaiting_data",
-                  "public_dir": str(pub_dir.relative_to(ROOT)), "public": []}
+                  "public_dir": str(pub_dir.relative_to(storage)), "public": []}
     for name, arrays in fz.public.items():
-        b = npz_bytes(**arrays)
         p = pub_dir / name
-        p.write_bytes(b)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with p.open('wb') as output:
+            np.savez(output, **arrays)
         first = next(iter(arrays.values()))
-        lock["public"].append({"path": str(p.relative_to(ROOT)), "sha256": hashlib.sha256(b).hexdigest(),
+        lock["public"].append({"path": str(p.relative_to(storage)), "sha256": sha256_file(p),
                                "keys": sorted(arrays), "rows": int(len(first))})
     for name, src in fz.raw_files.items():
         p = pub_dir / name
         p.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(src, p)
-        lock["public"].append({"path": str(p.relative_to(ROOT)), "sha256": sha256_file(p)})
-    plain = npz_bytes(**fz.hidden)
-    hid_path.write_bytes(hidden_store.encrypt_bytes(hidden_store.read_key(key_file), plain))
-    hid_path.chmod(0o600)
+        lock["public"].append({"path": str(p.relative_to(storage)), "sha256": sha256_file(p)})
+    with tempfile.TemporaryFile() as plain, os.fdopen(os.open(hid_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'wb') as output:
+        np.savez(plain, **fz.hidden)
+        plain.seek(0)
+        identity = hidden_store.encrypt_stream(hidden_store.read_key(key_file), plain, output)
     first = next(iter(fz.hidden.values()))
-    lock["hidden"] = {"path": str(hid_path.relative_to(ROOT)), "sha256_plain": hashlib.sha256(plain).hexdigest(),
+    lock["hidden"] = {"path": str(hid_path.relative_to(storage)), "sha256_plain": identity['sha256_plain'],
                       "keys": sorted(fz.hidden), "rows": int(len(first))}
     if fz.models:
         if mod_dir.exists():
             shutil.rmtree(mod_dir)
-        lock["models_dir"] = str(mod_dir.relative_to(ROOT))
+        lock["models_dir"] = str(mod_dir.relative_to(storage))
         lock["models"] = []
         for name, src in fz.models.items():
             dst = mod_dir / name
             shutil.copytree(src, dst, ignore=shutil.ignore_patterns(".git", ".cache", "*.lock", "*.metadata"))
-            lock["models"].append({"name": name, "path": str(dst.relative_to(ROOT)), "tree_sha256": tree_hash(dst)})
+            lock["models"].append({"name": name, "path": str(dst.relative_to(storage)), "tree_sha256": tree_hash(dst)})
     if fz.judge_models:                                  # evaluator-only models, e.g. a reward model
-        jdir = ROOT / "sandbox" / "judge_models" / case
+        jdir = storage / "sandbox" / "judge_models" / case
         if jdir.exists():
             shutil.rmtree(jdir)
-        lock["judge_models_dir"] = str(jdir.relative_to(ROOT))
+        lock["judge_models_dir"] = str(jdir.relative_to(storage))
         lock["judge_models"] = []
         for name, src in fz.judge_models.items():
             dst = jdir / name
             shutil.copytree(src, dst, ignore=shutil.ignore_patterns(".git", ".cache", "*.lock", "*.metadata"))
-            lock["judge_models"].append({"name": name, "path": str(dst.relative_to(ROOT)), "tree_sha256": tree_hash(dst)})
+            lock["judge_models"].append({"name": name, "path": str(dst.relative_to(storage)), "tree_sha256": tree_hash(dst)})
     lock["sources_sha256"] = fz.sources_sha256
     if fz.notes:
         lock["notes"] = fz.notes
     return lock
+
+
+def freeze(case: str, fz: Frozen, key_file: Path, synthetic: bool, *, metadata=None, regenerate=False,
+           seed_env=None) -> dict:
+    """Build privately, verify, then publish with rollback and a lock written after the data directories."""
+    from prepare.artifacts import Publication, atomic_text, verify_frozen
+    with Publication(ROOT, case) as publication, ExitStack() as cleanup:
+        lock = _write_frozen(case, fz, key_file, synthetic, publication.staging)
+        verify_frozen(publication.staging, lock, key_file)
+        if metadata:
+            lock.update(metadata)
+        lock_path = ROOT / 'cases' / case / 'case/data_lock.yaml'
+        staged_lock = publication.staging / 'data_lock.yaml'
+        atomic_text(staged_lock, '# written by tools/prepare/run.py; do not edit by hand\n'
+                    + yaml.safe_dump(lock, allow_unicode=True, sort_keys=False), 0o644)
+        mappings = [(lock_path, staged_lock)]
+        if regenerate:
+            mappings.append((lock_path.parent / 'oj.yaml', None))
+        if seed_env:
+            import json
+            import time
+            import uuid
+            target = key_file.expanduser().resolve().parent / 'seeds' / (case + '.json')
+            target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            nonce = uuid.uuid4().hex
+            staged_seed = target.with_name('.' + target.name + '-' + nonce + '.new')
+            body = {'case': case, 'env': seed_env, 'seed': os.environ[seed_env],
+                    'hidden_sha256_plain': lock['hidden']['sha256_plain'],
+                    'frozen_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}
+            atomic_text(staged_seed, json.dumps(body, indent=1), 0o600)
+            cleanup.callback(staged_seed.unlink, missing_ok=True)
+            mappings.append((target, staged_seed, target.with_name('.' + target.name + '-' + nonce + '.old')))
+            lock['secret_seed'] = {'env': seed_env, 'escrowed': True,
+                                   'note': 'stored next to the hidden-set key (seeds/<case>.json, 0600), not in the repository'}
+            atomic_text(staged_lock, '# written by tools/prepare/run.py; do not edit by hand\n'
+                        + yaml.safe_dump(lock, allow_unicode=True, sort_keys=False), 0o644)
+        for kind in ('data', 'hidden', 'models', 'judge_models'):
+            staged = publication.staging / 'sandbox' / kind / case
+            if staged.exists():
+                mappings.append((ROOT / 'sandbox' / kind / case, staged))
+        generate = (lambda: subprocess.run([sys.executable, str(ROOT / 'tools/build_standard_cases.py'),
+                                            '--case', case], check=True)) if regenerate else None
+        publication.publish(mappings, before_commit=generate, last=(lock_path,))
+        return lock
 
 
 def main() -> int:
@@ -211,11 +263,17 @@ def main() -> int:
         print(yaml.safe_dump(mod.SOURCES, allow_unicode=True, sort_keys=False, width=110))
         return 0
     if a.activate:
-        lock = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
-        if lock.get("synthetic"):
-            raise SystemExit("refusing to activate a case whose data is synthetic")
-        lock["activation"] = "active"
-        lock_path.write_text(yaml.safe_dump(lock, allow_unicode=True, sort_keys=False), encoding="utf-8")
+        from prepare.artifacts import Publication, atomic_text
+        with Publication(ROOT, a.case) as publication:
+            lock = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+            if lock.get("synthetic"):
+                raise SystemExit("refusing to activate a case whose data is synthetic")
+            lock["activation"] = "active"
+            staged = publication.staging / 'data_lock.yaml'
+            atomic_text(staged, yaml.safe_dump(lock, allow_unicode=True, sort_keys=False), 0o644)
+            publication.publish([(lock_path, staged), (lock_path.parent / 'oj.yaml', None)],
+                before_commit=lambda: subprocess.run([sys.executable, str(ROOT / "tools/build_standard_cases.py"),
+                                                     "--case", a.case], check=True), last=(lock_path,))
     else:
         if not a.key_file:
             raise SystemExit("--key-file is required")
@@ -227,22 +285,16 @@ def main() -> int:
             seed_env = getattr(mod, "SECRET_SEED_ENV", None)
             if seed_env and not os.environ.get(seed_env):
                 raise SystemExit(f"set {seed_env} to a secret integer before freezing {a.case}")
+            from prepare.sources import resolve_paths
+            resolve_paths(Path(a.raw_dir), mod.SOURCES)
             print(f"{a.case}: verifying raw files against their publishers")
             verified = verify_sources(mod, Path(a.raw_dir), a.allow_unverified)
             fz = mod.build(Path(a.raw_dir))
         else:
             raise SystemExit("pass --raw-dir (real data) or --synthetic N (plumbing test)")
-        lock = freeze(a.case, fz, Path(a.key_file), bool(a.synthetic))
-        if a.raw_dir and not a.synthetic:
-            lock["source_verification"] = verified
-            if seed_env:
-                where = escrow_seed(a.case, seed_env, Path(a.key_file), lock["hidden"]["sha256_plain"])
-                lock["secret_seed"] = {"env": seed_env, "escrowed": True,
-                                       "note": "stored next to the hidden-set key (seeds/<case>.json, 0600), not in the repository"}
-                print(f"{a.case}: secret seed escrowed at {where}")
-        lock_path.write_text("# written by tools/prepare/run.py; do not edit by hand\n"
-                             + yaml.safe_dump(lock, allow_unicode=True, sort_keys=False), encoding="utf-8")
-    subprocess.run([sys.executable, str(ROOT / "tools" / "build_standard_cases.py"), "--case", a.case], check=True)
+        metadata = {"source_verification": verified} if a.raw_dir and not a.synthetic else None
+        lock = freeze(a.case, fz, Path(a.key_file), bool(a.synthetic), metadata=metadata, regenerate=True,
+                      seed_env=seed_env if a.raw_dir and not a.synthetic else None)
     print(f"{a.case}: lock {lock_path.relative_to(ROOT)} activation={lock['activation']}"
           + ("  [SYNTHETIC]" if lock.get("synthetic") else ""))
     return 0

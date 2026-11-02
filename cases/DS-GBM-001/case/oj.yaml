@@ -29,7 +29,7 @@ agent_budget:
   session_hours: 4
 environment:
   profile: cpu-sci
-  version: '2026.10'
+  version: 1.0.0
 resources:
   budget_tier: budget
   hardware:

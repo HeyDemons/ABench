@@ -44,6 +44,19 @@ def sigterm_interrupts():
 
 
 @shielded()
+def stop_container(docker, container):
+    """The attach/exec client exiting is not evidence that container processes stopped."""
+    from runtime.transport import DockerError
+    state = docker.inspect(container).get('State') or {}
+    if state.get('Running') is True:
+        docker.kill(container)
+        state = docker.inspect(container).get('State') or {}
+    if state.get('Running') is not False:
+        raise DockerError('container is still running or its stopped state is unverified; refusing to collect mutable artifacts')
+    return state
+
+
+@shielded()
 def cleanup_objects(docker, containers, volumes, record):
     uncertain = getattr(docker, 'pending_containers', [])
     if isinstance(uncertain, list):

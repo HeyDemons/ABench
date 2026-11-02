@@ -1,7 +1,7 @@
 # OJ calibration (code only): the case's reference submission is trained with its own train.py and judged by
-# tools/oj_eval.py on the held-out split (./abench calibrate CASE --data DATA).
+# tools/oj_eval.py on the held-out split frozen in this checkout (./abench calibrate CASE).
 # final_flag: the train.py option that produces the checkpoint to judge (training plus dev rows).
-# synthetic_rows: size of the synthetic plumbing data (--data synthetic); real data: --data <raw-dir> (see --list-sources).
+# synthetic_rows: suggested size of the synthetic plumbing data (tools/prepare/run.py --synthetic N).
 # device: judge device on a calibration host without the case's reference hardware (recorded; never scorable).
 TC-FT-001:
   role: "pipeline-calibration case (index scope: calibration)"

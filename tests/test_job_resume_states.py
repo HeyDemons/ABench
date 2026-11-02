@@ -17,6 +17,18 @@ class JobResumeStateTests(unittest.TestCase):
     def setUpClass(cls):
         cls.row = next(row for row in catalog.load_catalog() if row['id'] == 'TC-FT-001')
 
+    def setUp(self):
+        backoff = patch('jobs.PROVIDER_BACKOFF_BASE', 0)
+        backoff.start()
+        self.addCleanup(backoff.stop)
+        # Plans skip cases that need more cores than the host has; a GitHub runner has only 4.
+        cpus = patch('jobs.os.cpu_count', return_value=64)
+        cpus.start()
+        self.addCleanup(cpus.stop)
+        discovery = patch('jobs.scheduler_docker_info', return_value=None)
+        discovery.start()
+        self.addCleanup(discovery.stop)
+
     def test_normal_exit_and_resume_preserve_provider_agent_and_deferred_outcomes(self):
         # Transient failures exhaust one retry; HTTP 402 and authentication failures stop immediately.
         cases = [
@@ -34,12 +46,12 @@ class JobResumeStateTests(unittest.TestCase):
             with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 document = jobs.plan([self.row], ['mock'], [None], inventory=[])
-                document.update(id=name, suite='all@2026.10')
+                document.update(id=name, suite='all@2.2.0')
                 path = root / 'jobs' / name / 'job.json'
                 launched = []
 
                 def popen(command, cwd, stdout, stderr):
-                    run = root / 'runs' / self.row['id'] / command[command.index('--run-id') + 1]
+                    run = root / 'runs' / 'mock' / self.row['category'] / self.row['id'] / command[command.index('--run-id') + 1]
                     run.mkdir(parents=True)
                     record = {'error_type': kind}
                     if filename == 'agent_run.json':
@@ -81,7 +93,7 @@ class JobResumeStateTests(unittest.TestCase):
             with self.subTest(recovers=recovers), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 document = jobs.plan([self.row], ['mock'], [None], inventory=[])
-                document.update(id='judge', suite='all@2026.10')
+                document.update(id='judge', suite='all@2.2.0')
                 commands = []
 
                 def popen(command, cwd, stdout, stderr):
@@ -91,7 +103,7 @@ class JobResumeStateTests(unittest.TestCase):
                             run = Path(command[command.index('--run') + 1])
                             (run / 'evaluation.json').write_text(json.dumps({'verdict': 'evaluated', 'scorable': True}))
                         return SimpleNamespace(poll=lambda: 0 if recovers else 1, pid=None)
-                    run = root / 'runs' / self.row['id'] / command[command.index('--run-id') + 1]
+                    run = root / 'runs' / 'mock' / self.row['category'] / self.row['id'] / command[command.index('--run-id') + 1]
                     run.mkdir(parents=True)
                     (run / 'agent_run.json').write_text(json.dumps({'status': 'succeeded', 'error_type': None}))
                     (run / 'evaluation.json').write_text(json.dumps(failed))
@@ -113,7 +125,7 @@ class JobResumeStateTests(unittest.TestCase):
             with self.subTest(state=state), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 document = jobs.plan([self.row], ['mock'], [None], inventory=[])
-                document.update(id='missed-exit', suite='all@2026.10')
+                document.update(id='missed-exit', suite='all@2.2.0')
                 entry = document['entries'][0]
                 run = jobs.run_path(root, document, entry)
                 run.mkdir(parents=True)

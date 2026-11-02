@@ -10,10 +10,13 @@ import subprocess
 import sys
 import time
 from collections import Counter, defaultdict
+from contextlib import ExitStack
 from pathlib import Path
 
 from agents.errors import PROVIDER_ERRORS, RETRYABLE, retryable_judge_failure
 from catalog import ROOT, TIERS, snapshot
+
+PROVIDER_BACKOFF_BASE = 5.0
 
 INFRA_ERRORS = ('cannot connect to the docker daemon', 'error response from daemon', 'no space left on device',
                 'failed to create task', 'connection reset by peer', 'docker daemon', 'context deadline exceeded',
@@ -152,26 +155,35 @@ def skip_reason(row: dict, inventory: list[dict], *, allow_nonreference: bool = 
 
 
 def plan(rows: list[dict], agents: list[str], models: list[str | None], attempts: int = 1,
-         inventory: list[dict] | None = None, allow_nonreference: bool = False, order: str = 'resources',
-         allow_shared: bool = False, pairs: list[tuple[str, str | None]] | None = None) -> dict:
+         inventory: list[dict] | None = None, allow_nonreference: bool = False, order: str = 'category',
+         allow_shared: bool = False, pairs: list[tuple[str, str | None]] | None = None,
+         cpu_count: int | None = None) -> dict:
     """pairs, when given, are the harness × model combinations to run (e.g. only protocol-compatible ones)."""
-    inventory = gpu_inventory() if inventory is None else inventory
+    if inventory is None:
+        inventory = gpu_inventory() if any(int(row['resources']['gpus']) for row in rows) else []
     if attempts < 1:
         raise ValueError('attempts must be positive')
-    if order == 'resources':
+    if order == 'category':                 # the five categories in turn, each from low to high resources
+        from catalog import category_names
+        names = category_names()
+        rows = sorted(rows, key=lambda r: (names.index(r['category']), TIERS.index(r['resource_tier']),
+                                           int(r['resources']['gpus']), r['id']))
+    elif order == 'resources':
         rows = sorted(rows, key=lambda r: (TIERS.index(r['resource_tier']), int(r['resources']['gpus']), r['id']))
     elif order == 'case':
         rows = sorted(rows, key=lambda r: r['id'])
     entries = []
     totals = dict.fromkeys(('reference_gpu_hours', 'h100_hours', 'cpu_core_hours'), 0.)
     for row in rows:
-        reason = skip_reason(row, inventory, allow_nonreference=allow_nonreference, allow_shared=allow_shared)
+        reason = skip_reason(row, inventory, allow_nonreference=allow_nonreference, allow_shared=allow_shared,
+                             cpu_count=cpu_count)
+        estimated = estimate(row)
         for agent, model in (pairs if pairs is not None else [(a, m) for a in agents for m in models]):
             for attempt in range(1, attempts + 1):
                 identity = json.dumps([row['id'], agent, model, attempt], separators=(',', ':'))
                 entry = {'id': hashlib.sha256(identity.encode()).hexdigest()[:16], 'case': row['id'], 'agent': agent,
                          'model': model, 'attempt': attempt, 'catalog': snapshot(row), 'resources': row['resources'],
-                         'estimate': estimate(row), 'state': 'skipped' if reason else 'pending', 'skip_reason': reason,
+                         'estimate': dict(estimated), 'state': 'skipped' if reason else 'pending', 'skip_reason': reason,
                          'retries': 0}
                 entries.append(entry)
                 for k, v in entry['estimate'].items():
@@ -186,7 +198,13 @@ def run_path(root: Path, document: dict, entry: dict) -> Path:
     failure and a restart after an interrupted attempt each get a new directory; the old one is kept for audit."""
     suffix = ('-retry' + str(entry['retries']) if entry.get('retries') else '') + \
              ('-restart' + str(entry['restarts']) if entry.get('restarts') else '')
-    return root / 'runs' / entry['case'] / ('job-' + document['id'] + '-' + entry['id'] + suffix)
+    category = (entry.get('catalog') or {}).get('category')
+    if category:
+        from agents import run_label
+        name = 'job-' + document['id'] + '-' + entry['id'] + suffix
+        return root / 'runs' / run_label(entry['agent'], entry.get('model')) / category / entry['case'] / name
+    from agents import run_dir
+    return run_dir(root / 'runs', entry['agent'], entry.get('model'), entry['case'], 'job-' + document['id'] + '-' + entry['id'] + suffix)
 
 
 def _alive(pid: int | None, marker: str) -> bool:
@@ -201,6 +219,11 @@ def _alive(pid: int | None, marker: str) -> bool:
         pass
     r = subprocess.run(['ps', '-p', str(pid), '-o', 'command='], capture_output=True, text=True)
     return marker in r.stdout
+
+
+def load(path: Path) -> dict:
+    from job_store import load as replay
+    return replay(path)
 
 
 def save(path: Path, document: dict) -> None:
@@ -225,7 +248,10 @@ def failure_kind(run: Path, record: dict | None) -> str | None:
         return record.get('error_type')
     preflight = run / 'preflight.json'
     try:
-        return json.loads(preflight.read_text()).get('error_type') if preflight.is_file() else None
+        if preflight.is_file():
+            return json.loads(preflight.read_text()).get('error_type')
+        attempt = run / 'attempt.json'
+        return ((json.loads(attempt.read_text()).get('failure') or {}).get('kind') if attempt.is_file() else None)
     except ValueError:
         return None
 
@@ -250,6 +276,8 @@ def finished_state(run: Path, record: dict | None, evaluation: dict | None) -> t
     None means there is no finished outcome yet, so an interrupted attempt keeps the restart path.
     """
     kind = failure_kind(run, record)
+    if record is None and (run / 'collection_pending.json').is_file():
+        return 'recollect', kind
     if kind in PROVIDER_ERRORS:
         return 'provider_error', kind
     if retryable_judge_failure(evaluation):
@@ -258,19 +286,71 @@ def finished_state(run: Path, record: dict | None, evaluation: dict | None) -> t
         return 'completed', kind
     if record and record.get('evaluation_deferred'):
         return 'awaiting_judge', kind
+    if record and not kind and (run / 'attempt.json').is_file():
+        attempt = json.loads((run / 'attempt.json').read_text())
+        if attempt.get('phase') in ('judge', 'awaiting_judge'):
+            return 'judge_failed', kind
     if kind or record and record.get('status') in ('failed', 'timeout'):
         return 'failed', kind
     return None, kind
 
 
+def _run_records(run: Path) -> tuple[dict | None, dict | None]:
+    """Read durable outcomes in the same order for recovery and normal process completion."""
+    record = json.loads((run / 'agent_run.json').read_text()) if (run / 'agent_run.json').is_file() else None
+    evaluation = json.loads((run / 'evaluation.json').read_text()) if (run / 'evaluation.json').is_file() else None
+    return record, evaluation
+
+
+def _finish_entry(entry: dict, returncode: int, retries: int) -> None:
+    """Classify a finished child and schedule only the retries allowed by its recorded outcome."""
+    run = Path(entry['run'])
+    record, evaluation = _run_records(run)
+    attempt_path = run / 'attempt.json'
+    attempt = json.loads(attempt_path.read_text()) if attempt_path.is_file() else None
+    # Structured failures are authoritative for new runs; only legacy runners need traceback fallback.
+    if attempt is not None:
+        infrastructure = (attempt.get('failure') or {}).get('kind') == 'infrastructure'
+    else:
+        with Path(entry['log']).open('rb') as stream:
+            stream.seek(0, 2); stream.seek(max(0, stream.tell() - 32768))
+            details = stream.read().decode(errors='replace') + '\n' + str((evaluation or {}).get('error', ''))
+        infrastructure = infrastructure_failure(returncode, details, record)
+    state, kind = finished_state(run, record, evaluation)
+    entry['error_type'] = kind
+    if state == 'recollect':
+        entry['state'] = 'collection_pending' if entry.get('action') == 'collect' else 'recollect'
+    elif state == 'judge_failed':
+        # Only judging failed, on the infrastructure: never rerun the agent for it.
+        entry['state'] = after_judging(entry, state, retries)
+    elif (entry.get('action') != 'judge' and (infrastructure or kind in RETRYABLE)
+          and entry['retries'] < retries):
+        entry['retries'] += 1
+        entry['state'] = 'pending'
+    else:
+        entry['state'] = state or 'failed'
+    entry.update(returncode=returncode, finished_at=time.time())
+
+
 class ResourcePool:
-    """Reserve CPU slots and per-GPU file locks shared by concurrent ABench jobs."""
+    """Reserve declared slots, or the daemon node when containers receive its full CPU/RAM allowance."""
     def __init__(self, inventory: list[dict], allow_nonreference: bool = False, lock_dir: Path | None = None,
-                 *, allow_shared: bool = False):
+                 *, allow_shared: bool = False, docker_info: dict | None = None):
         self.inventory = inventory
         self.allow_nonreference = allow_nonreference
         self.allow_shared = allow_shared
-        self.cpu_total = os.cpu_count() or 1
+        raw = (docker_info or {}).get('raw') or {}
+        self.cpu_total = int(raw.get('NCPU') or os.cpu_count() or 1)
+        self.node = None
+        self.exclusive_node = False
+        if docker_info is not None:
+            from runtime.policy import policy
+            if int(raw.get('NCPU') or 0) <= 0:
+                raise ValueError('Docker daemon CPU capacity is required for resource leases')
+            self.exclusive_node = bool(policy().get('host_scale') and raw.get('NCPU') and raw.get('MemTotal'))
+            if not raw.get('ID'):
+                raise ValueError('Docker daemon identity is required for resource leases')
+            self.node = hashlib.sha256(str(raw['ID']).encode()).hexdigest()
         self.cpu_used = 0
         self.leases = {}
         self.lock_dir = lock_dir or Path.home() / '.abench/gpu-locks'
@@ -279,6 +359,10 @@ class ResourcePool:
         import fcntl
         resources = row['resources']
         cpus, n = int(resources['cpus']), int(resources['gpus'])
+        if cpus > self.cpu_total:
+            return None
+        if self.exclusive_node:
+            cpus = self.cpu_total
         if self.allow_shared and resources['budget_tier'] == 'pro':
             return None
         if self.cpu_used + cpus > self.cpu_total:
@@ -287,23 +371,31 @@ class ResourcePool:
         available = [g for g in compatible_gpus(row, self.inventory, self.allow_nonreference, self.allow_shared) if g not in allocated]
         handles, chosen = [], []
         self.lock_dir.mkdir(parents=True, exist_ok=True)
-        for gpu in available:
-            if len(chosen) == n:
-                break
-            handle = (self.lock_dir / ('gpu-' + gpu + '.lock')).open('a')
-            try:
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                handles.append(handle)
-                chosen.append(gpu)
-            except BlockingIOError:
-                handle.close()
-        if len(chosen) != n:
-            for handle in handles:
-                handle.close()
-            return None
-        self.cpu_used += cpus
-        self.leases[key] = {'gpus': chosen, 'cpus': cpus, 'handles': handles}
-        return chosen
+        with ExitStack() as rollback:
+            if self.node is not None:
+                handle = rollback.enter_context((self.lock_dir / ('node-' + self.node + '.lock')).open('a'))
+                mode = fcntl.LOCK_EX if self.exclusive_node or resources['budget_tier'] == 'pro' else fcntl.LOCK_SH
+                try:
+                    fcntl.flock(handle, mode | fcntl.LOCK_NB)
+                    handles.append(handle)
+                except BlockingIOError:
+                    return None
+            for gpu in available:
+                if len(chosen) == n:
+                    break
+                handle = rollback.enter_context((self.lock_dir / ('gpu-' + gpu + '.lock')).open('a'))
+                try:
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    handles.append(handle)
+                    chosen.append(gpu)
+                except BlockingIOError:
+                    handle.close()
+            if len(chosen) != n:
+                return None
+            self.cpu_used += cpus
+            self.leases[key] = {'gpus': chosen, 'cpus': cpus, 'handles': handles}
+            rollback.pop_all()                   # successful lease owns these handles until release()
+            return chosen
 
     def release(self, key: str) -> None:
         lease = self.leases.pop(key)
@@ -312,9 +404,60 @@ class ResourcePool:
             handle.close()
 
 
+def provider_key(endpoint):
+    if not endpoint:
+        return None
+    credential = os.environ.get(endpoint['key_env'], '')
+    identity = [endpoint.get('base_url'), endpoint['key_env'], hashlib.sha256(credential.encode()).hexdigest()]
+    return hashlib.sha256(json.dumps(identity, separators=(',', ':')).encode()).hexdigest()
+
+
+def _cooldown(document, entry):
+    if entry.get('error_type') not in RETRYABLE:
+        return
+    delay = min(300.0, PROVIDER_BACKOFF_BASE * 2 ** min(10, max(0, entry.get('retries', 0) - 1)))
+    eligible = time.time() + delay
+    if entry.get('state') == 'pending':
+        entry['next_eligible_at'] = eligible
+    if entry.get('provider_key'):
+        values = document.setdefault('provider_cooldowns', {})
+        values[entry['provider_key']] = max(values.get(entry['provider_key'], 0), eligible)
+
+
+def _provider_active(active, key):
+    count = 0
+    for _, _, entry in active.values():
+        if entry.get('provider_key') != key or entry.get('action') in ('judge', 'collect'):
+            continue
+        attempt = Path(entry['run']) / 'attempt.json'
+        if attempt.is_file():
+            phase = json.loads(attempt.read_text()).get('phase')
+            if phase in ('collection', 'collected', 'finalize', 'judge', 'awaiting_judge'):
+                continue
+        count += 1
+    return count
+
+
+def scheduler_docker_info(runner_options):
+    """Discover the execution daemon once; a host smoke job never needs Docker."""
+    options = runner_options or []
+    backend = 'docker'
+    for index, option in enumerate(options):
+        if option == '--backend' and index + 1 < len(options):
+            backend = options[index + 1]
+        elif option.startswith('--backend='):
+            backend = option.split('=', 1)[1]
+    if backend == 'host':
+        return None
+    from containers import Docker
+    return Docker().info()
+
+
 def execute(document: dict, path: Path, *, concurrency: int = 1, max_gpu_hours: float | None = None,
             retries: int = 1, runner_options: list[str] | None = None, root: Path = ROOT,
-            allow_nonreference: bool = False, allow_shared: bool = False) -> dict:
+            allow_nonreference: bool = False, allow_shared: bool = False, provider_concurrency: int = 1) -> dict:
+    if provider_concurrency < 1:
+        raise ValueError('provider concurrency must be positive')
     if concurrency < 1:
         raise ValueError('concurrency must be positive')
     from catalog import load_catalog
@@ -327,8 +470,11 @@ def execute(document: dict, path: Path, *, concurrency: int = 1, max_gpu_hours: 
     except BlockingIOError:
         job_lock.close()
         raise RuntimeError(f'job {document["id"]} is already being executed by another process')
-    pool = ResourcePool(gpu_inventory(), allow_nonreference, allow_shared=allow_shared)
+    from job_store import Journal
+    journal = Journal(path, document)
     document['allow_shared_gpu'] = allow_shared
+    document['allow_nonreference_gpu'] = allow_nonreference
+    document['provider_concurrency'] = provider_concurrency
     document.pop('waiting_for_resources', None)
     active = {}
     spent = float(document.get('committed_gpu_hours', 0))
@@ -342,8 +488,13 @@ def execute(document: dict, path: Path, *, concurrency: int = 1, max_gpu_hours: 
             run = run_path(root, document, entry)
         else:
             run = Path(entry.get('run') or run_path(root, document, entry))
-        record = json.loads((run / 'agent_run.json').read_text()) if (run / 'agent_run.json').is_file() else None
-        evaluation = json.loads((run / 'evaluation.json').read_text()) if (run / 'evaluation.json').is_file() else None
+        attempt = run / 'attempt.json'
+        if attempt.is_file():
+            phase = json.loads(attempt.read_text())
+            if phase.get('status') == 'running' and _alive(phase.get('pid'), run.name):
+                job_lock.close()
+                raise RuntimeError('the original runner is still executing; wait before resuming its job')
+        record, evaluation = _run_records(run)
         state, kind = finished_state(run, record, evaluation)
         if state:
             entry.update(state=after_judging(entry, state, retries), error_type=kind)
@@ -355,38 +506,77 @@ def execute(document: dict, path: Path, *, concurrency: int = 1, max_gpu_hours: 
                 run = run_path(root, document, entry)
             entry['state'] = 'pending'
         entry['run'] = str(run)
-    save(path, document)
+    journal.checkpoint(document)
+    try:
+        info = scheduler_docker_info(runner_options) if any(e['state'] in ('pending', 'rejudge', 'recollect') for e in document['entries']) else None
+        pool = ResourcePool([], allow_nonreference, allow_shared=allow_shared, docker_info=info)
+    except BaseException:
+        job_lock.close()
+        raise
     def terminate(signum, frame):
         raise SystemExit(128 + signum)
     previous_term = signal.signal(signal.SIGTERM, terminate)
     try:
         while True:
-            pending = [e for e in document['entries'] if e['state'] in ('pending', 'rejudge')]
+            finished = []
+            for key, (process, log, entry) in list(active.items()):
+                rc = process.poll()
+                if rc is None:
+                    continue
+                log.close()
+                pool.release(key)
+                del active[key]
+                _finish_entry(entry, rc, retries)
+                _cooldown(document, entry)
+                finished.append(entry)
+            if finished:
+                journal.update(document, finished)
+            pending = [e for e in document['entries'] if e['state'] in ('pending', 'rejudge', 'recollect')]
+            if (len(active) < concurrency and pool.cpu_used < pool.cpu_total
+                    and any(int(rows[e['case']]['resources']['gpus']) for e in pending)):
+                pool.inventory = gpu_inventory()
+            changed = []
+            cooldowns = []
             for entry in pending:
-                if len(active) >= concurrency:
+                if len(active) >= concurrency or pool.cpu_used >= pool.cpu_total:
                     break
                 row = rows[entry['case']]
                 # rejudge: judge the collected submission again in the same run directory, without the agent
                 judge_again = entry['state'] == 'rejudge'
+                collecting = entry['state'] == 'recollect'
                 from agents import get_agent
                 from agents.models import resolve
                 endpoint = resolve(get_agent(entry['agent']), entry.get('model'), oj=row['oj'])
-                if endpoint and not judge_again and not os.environ.get(endpoint['key_env']):
+                entry['provider_key'] = provider_key(endpoint)
+                eligible = max(entry.get('next_eligible_at', 0), (document.get('provider_cooldowns') or {}).get(entry['provider_key'], 0))
+                if not judge_again and not collecting and eligible > time.time():
+                    cooldowns.append(eligible)
+                    continue
+                if entry['provider_key'] and not judge_again and not collecting and _provider_active(active, entry['provider_key']) >= provider_concurrency:
+                    continue
+                if endpoint and not judge_again and not collecting and not os.environ.get(endpoint['key_env']):
                     entry.update(state='skipped', skip_reason='missing credential variable ' + endpoint['key_env'])
+                    changed.append(entry)
                     continue
-                pool.inventory = gpu_inventory()
-                reason = skip_reason(row, pool.inventory, allow_nonreference=allow_nonreference, allow_shared=allow_shared)
+                reason = skip_reason(row, pool.inventory, allow_nonreference=allow_nonreference, allow_shared=allow_shared,
+                                     cpu_count=pool.cpu_total)
                 if reason:
-                    entry.update(state='judge_failed' if judge_again else 'skipped', skip_reason=reason)
+                    entry.update(state='judge_failed' if judge_again else 'collection_pending' if collecting else 'skipped', skip_reason=reason)
+                    changed.append(entry)
                     continue
-                cost = 0 if judge_again else entry['estimate']['reference_gpu_hours'] + entry['estimate']['h100_hours']
+                cost = 0 if judge_again or collecting else entry['estimate']['reference_gpu_hours'] + entry['estimate']['h100_hours']
                 if max_gpu_hours is not None and spent + cost > max_gpu_hours:
                     entry.update(state='skipped', skip_reason='max GPU hours would be exceeded')
+                    changed.append(entry)
                     continue
                 assigned = pool.acquire(entry['id'], row)
                 if assigned is None:
                     continue
-                if judge_again:
+                if collecting:
+                    run = Path(entry['run'])
+                    entry['collection_retries'] = entry.get('collection_retries', 0) + 1
+                    name = entry['id'] + '-collect-' + str(entry['collection_retries'])
+                elif judge_again:
                     run = Path(entry['run'])
                     entry['judge_retries'] = entry.get('judge_retries', 0) + 1
                     name = entry['id'] + '-' + str(entry['retries']) + '-judge' + str(entry['judge_retries'])
@@ -398,7 +588,11 @@ def execute(document: dict, path: Path, *, concurrency: int = 1, max_gpu_hours: 
                 log_path.parent.mkdir(parents=True, exist_ok=True)
                 entry['log'] = str(log_path)
                 log = log_path.open('ab')
-                if judge_again:
+                if collecting:
+                    command = [sys.executable, str(root / 'tools/abench.py'), 'recover', '--run', str(run),
+                               '--hidden-key-file', hidden_key_file(runner_options)]
+                    command += ['--gpus', ','.join(assigned)] if assigned else []
+                elif judge_again:
                     command = [sys.executable, str(root / 'tools/abench.py'), 'judge', '--run', str(run),
                                '--hidden-key-file', hidden_key_file(runner_options)]
                     command += ['--gpus', ','.join(assigned)] if assigned else []
@@ -418,47 +612,37 @@ def execute(document: dict, path: Path, *, concurrency: int = 1, max_gpu_hours: 
                     if '--hidden-key-file' not in command and (Path.home() / '.abench/hidden.key').is_file():
                         command += ['--hidden-key-file', str(Path.home() / '.abench/hidden.key')]
                 try:
+                    entry.update(state='running', action='collect' if collecting else 'judge' if judge_again else 'run',
+                                 gpus=assigned, started_at=time.time(), command=command, pid=None)
+                    spent += cost
+                    document['committed_gpu_hours'] = spent
+                    journal.update(document, [entry])     # durable launch intent before a child can create records
                     process = subprocess.Popen(command, cwd=root, stdout=log, stderr=subprocess.STDOUT)
                 except OSError:
                     log.close()
                     pool.release(entry['id'])
+                    spent -= cost
+                    document['committed_gpu_hours'] = spent
+                    entry['state'] = 'recollect' if collecting else 'rejudge' if judge_again else 'pending'
+                    journal.update(document, [entry])
                     raise
-                entry.update(state='running', action='judge' if judge_again else 'run', gpus=assigned,
+                entry.update(state='running', action='collect' if collecting else 'judge' if judge_again else 'run', gpus=assigned,
                              started_at=time.time(), command=command, pid=process.pid)
-                spent += cost
-                document['committed_gpu_hours'] = spent
                 active[entry['id']] = (process, log, entry)
-                save(path, document)
+                journal.update(document, [entry])
+            if changed:
+                journal.update(document, changed)
             if not active:
-                if any(e['state'] in ('pending', 'rejudge') for e in document['entries']):
+                if cooldowns:
+                    document['waiting_for_provider_until'] = min(cooldowns)
+                    journal.update(document)
+                    time.sleep(min(.2, max(0, min(cooldowns) - time.time())))
+                    continue
+                if any(e['state'] in ('pending', 'rejudge', 'recollect') for e in document['entries']):
                     # Nothing could start: GPUs are busy or leased by another ABench job. Leave durable
                     # pending work for resume.
                     document['waiting_for_resources'] = True
                 break
-            for key, (process, log, entry) in list(active.items()):
-                rc = process.poll()
-                if rc is None:
-                    continue
-                log.close()
-                pool.release(key)
-                del active[key]
-                run = Path(entry['run'])
-                record = json.loads((run / 'agent_run.json').read_text()) if (run / 'agent_run.json').is_file() else None
-                evaluation = json.loads((run / 'evaluation.json').read_text()) if (run / 'evaluation.json').is_file() else None
-                details = Path(entry['log']).read_text(errors='replace') + '\n' + str((evaluation or {}).get('error', ''))
-                state, kind = finished_state(run, record, evaluation)
-                entry['error_type'] = kind
-                if state == 'judge_failed':
-                    # Only judging failed, on the infrastructure: never rerun the agent for it.
-                    entry['state'] = after_judging(entry, state, retries)
-                elif (entry.get('action') != 'judge' and (infrastructure_failure(rc, details, record) or kind in RETRYABLE)
-                      and entry['retries'] < retries):
-                    entry['retries'] += 1
-                    entry['state'] = 'pending'
-                else:
-                    entry['state'] = state or 'failed'
-                entry.update(returncode=rc, finished_at=time.time())
-                save(path, document)
             time.sleep(.2)
     except BaseException:
         for process, log, entry in active.values():
@@ -471,18 +655,22 @@ def execute(document: dict, path: Path, *, concurrency: int = 1, max_gpu_hours: 
                 process.wait()
             log.close()
             pool.release(key)
-            entry['state'] = 'rejudge' if entry.get('action') == 'judge' else 'pending'
+            entry['state'] = 'recollect' if entry.get('action') == 'collect' else 'rejudge' if entry.get('action') == 'judge' else 'pending'
         raise
     finally:
+        # A failure preparing a log or command can occur after acquire(), before active owns the lease.
+        for key in list(pool.leases):
+            pool.release(key)
         signal.signal(signal.SIGTERM, previous_term)
         document['updated_at'] = time.time()
-        save(path, document)
+        journal.checkpoint(document)
         job_lock.close()
     return document
 
 
 def report(document: dict) -> dict:
-    groups = {k: defaultdict(lambda: {'verdicts': Counter(), 'results': []}) for k in ('difficulty_resources', 'area', 'harness_model')}
+    groups = {k: defaultdict(lambda: {'verdicts': Counter(), 'results': []})
+              for k in ('category', 'difficulty_resources', 'area', 'harness_model')}
     excluded = []
     for entry in document['entries']:
         if entry['catalog']['leaderboard'] == 'none':
@@ -492,7 +680,8 @@ def report(document: dict) -> dict:
         result = json.loads(evaluation.read_text()) if evaluation.is_file() else {}
         verdict = result.get('verdict', entry['state'])
         cat = entry['catalog']
-        keys = {'difficulty_resources': cat['difficulty'] + '/' + cat['resource_tier'], 'area': cat['area'],
+        keys = {'category': cat.get('category') or 'unknown',
+                'difficulty_resources': cat['difficulty'] + '/' + cat['resource_tier'], 'area': cat['area'],
                 'harness_model': entry['agent'] + '/' + (entry.get('model') or 'default')}
         for axis, key in keys.items():
             group = groups[axis][key]

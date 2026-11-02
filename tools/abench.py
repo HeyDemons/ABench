@@ -8,7 +8,6 @@ import json
 import os
 import re
 import secrets
-import shutil
 import subprocess
 import sys
 import time
@@ -52,7 +51,7 @@ def load_env(path: Path = ROOT / '.env') -> list[str]:
 
 def add_filters(parser):
     parser.add_argument('--suite', default='all')
-    for name in ('difficulty', 'resources', 'area', 'type', 'subset', 'cases'):
+    for name in ('category', 'difficulty', 'resources', 'area', 'type', 'subset', 'cases'):
         parser.add_argument('--' + name, help='comma-separated values')
 
 
@@ -178,6 +177,9 @@ def judge_run(argv: list[str]) -> int:
     ap.add_argument('--backend', choices=('docker', 'host'))
     ap.add_argument('--gpus')
     ap.add_argument('--image')
+    ap.add_argument('--rejudge', metavar='REASON',
+                    help='judge a final evaluation again (e.g. after a judge rule changed); it is archived as '
+                         'evaluation.superseded-N.json and the new record names it and the reason')
     args = ap.parse_args(argv)
     run = Path(args.run).expanduser().resolve()
     out = run / 'evaluation.json'
@@ -192,6 +194,8 @@ def judge_run(argv: list[str]) -> int:
         elif retryable_judge_failure(previous):
             # Judging failed on the infrastructure: judge the collected submission again, keeping the failure.
             archive = run / f'evaluation.judge-error-{len(list(run.glob("evaluation.judge-error-*.json"))) + 1}.json'
+        elif args.rejudge:
+            archive = run / f'evaluation.superseded-{len(list(run.glob("evaluation.superseded-*.json"))) + 1}.json'
         else:
             raise ValueError(f'evaluation record already exists and is immutable: {out}')
         if archive.exists() or archive.is_symlink():
@@ -225,6 +229,8 @@ def judge_run(argv: list[str]) -> int:
                                       run_id=record.get('run_id') or run.name)
     apply_agent_attestation(evaluation, record)
     evaluation['agent_run_sha256'] = sha256_file(agent_path)
+    if args.rejudge and archive is not None and archive.name.startswith('evaluation.superseded-'):
+        evaluation['supersedes'] = {'record': archive.name, 'verdict': previous.get('verdict'), 'reason': args.rejudge}
     text = json.dumps(evaluation, ensure_ascii=False, indent=2) + '\n'
     if previous is not None:
         # Preserve the placeholder or failed judging, and never overwrite an existing archive or final evaluation.
@@ -239,10 +245,10 @@ def judge_run(argv: list[str]) -> int:
 
 
 def calibrate(argv: list[str]) -> int:
+    """Optional shortcut: the oracle runs the case's reference submission with this checkout's code and the data
+    already frozen in it, and the judge evaluates it. Nothing is copied or prepared; the key is passed by path."""
     ap = argparse.ArgumentParser(prog='abench calibrate')
     ap.add_argument('case')
-    ap.add_argument('--data', default='synthetic')
-    ap.add_argument('--rows', type=int)
     ap.add_argument('--hidden-key-file', default=str(Path.home() / '.abench/hidden.key'))
     ap.add_argument('--run-id')
     ap.add_argument('--gpus')
@@ -250,63 +256,35 @@ def calibrate(argv: list[str]) -> int:
     ap.add_argument('--backend', choices=('docker', 'host'), default='docker')
     ap.add_argument('--allow-nonreference-gpu', action='store_true')
     ap.add_argument('--allow-shared-gpu', action='store_true', help='unscored Budget validation on a sufficiently free low-load GPU')
-    ap.add_argument('--allow-unverified', action='store_true')
     ap.add_argument('--image')
+    if any(a.split('=')[0] in ('--data', '--rows', '--allow-unverified') for a in argv):
+        ap.error('calibrate no longer prepares data; freeze it in this checkout with tools/prepare/run.py first')
     args = ap.parse_args(argv)
     row = next((r for r in load_catalog() if r['id'] == args.case), None)
     if row is None:
         ap.error('unknown case')
     if row['resources']['budget_tier'] == 'pro':
         ap.error('Pro calibration needs the audit workflow on an exclusive 4 x H100 node')
-    run_id = args.run_id or 'ojcal-' + time.strftime('%Y%m%d-%H%M%S-') + secrets.token_hex(3)
+    data = row['oj'].get('data') or {}
+    if not re.fullmatch(r'[0-9a-f]{64}', str((data.get('hidden') or {}).get('sha256_plain', ''))):
+        tool = 'tools/prepare_ic_spd.py' if args.case == 'IC-SPD-001' else f'tools/prepare/run.py --case {args.case}'
+        ap.error(f'{args.case} has no frozen data in this checkout; prepare it first: python3 {tool} --raw-dir RAW '
+                 '--key-file KEY (or ABENCH_ALLOW_SYNTHETIC=1 ... --synthetic N for an unscored plumbing check)')
     key = Path(args.hidden_key_file).expanduser().resolve()
-    key.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    if not key.is_file() and call('hidden_store.py', ['keygen', str(key)]):
-        return 1
-    work = Path.home() / '.abench/calibration' / run_id
-    if work.exists():
-        ap.error(f'calibration work tree already exists: {work}')
-    def ignore(path, names):
-        excluded = {'.git', '__pycache__', 'runs', 'jobs', '.pytest_cache', 'node_modules', '.venv'}
-        if Path(path) == ROOT / 'sandbox':
-            excluded |= {'data', 'hidden', 'models', 'judge_models'}
-        return [n for n in names if n in excluded]
-    work.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    shutil.copytree(ROOT, work, ignore=ignore)
-    work.chmod(0o700)
+    if not key.is_file():
+        ap.error(f'hidden key not found: {key}; pass the key the data was frozen with')
+    run_id = args.run_id or 'ojcal-' + time.strftime('%Y%m%d-%H%M%S-') + secrets.token_hex(3)
     env = dict(os.environ)
     for name in ('OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS'):
         env[name] = str(row['resources']['cpus'])
     if args.image:
         env['ABENCH_JUDGE_IMAGE'] = args.image
+    if data.get('synthetic'):
+        # Data frozen with --synthetic is an explicit plumbing check; the judge records it as never scorable.
+        env['ABENCH_ALLOW_SYNTHETIC'] = '1'
     config_path = ROOT / 'sandbox/calibration/cases.yaml'
     import yaml
     config = (yaml.safe_load(config_path.read_text()) or {}).get(args.case) or {}
-    prepare = ['--case', args.case, '--key-file', str(key)]
-    if args.data == 'synthetic':
-        env['ABENCH_ALLOW_SYNTHETIC'] = '1'
-        prepare += ['--synthetic', str(args.rows or config.get('synthetic_rows', 3000))]
-    elif args.data == 'generated':
-        query = subprocess.run([sys.executable, '-c', 'import sys,importlib;sys.path.insert(0,"tools"); '
-                                'm=importlib.import_module("prepare."+sys.argv[1].lower().replace("-","_"));'
-                                'print(getattr(m,"SECRET_SEED_ENV",""))', args.case], cwd=work, capture_output=True, text=True, check=True)
-        seed_env = query.stdout.strip()
-        if not seed_env:
-            ap.error('case has no generated held-out set; supply --data synthetic or a raw directory')
-        env.setdefault(seed_env, str(secrets.randbelow(2**31 - 1) + 1))
-        raw = work / 'empty_raw'
-        raw.mkdir()
-        prepare += ['--raw-dir', str(raw)]
-    else:
-        prepare += ['--raw-dir', str(Path(args.data).expanduser().resolve())]
-    if args.allow_unverified:
-        prepare += ['--allow-unverified']
-    tool = 'prepare_ic_spd.py' if args.case == 'IC-SPD-001' else 'prepare/run.py'
-    if args.case == 'IC-SPD-001':
-        prepare = prepare[2:]
-    rc = call(tool, prepare, root=work, env=env)
-    if rc:
-        return rc
     validation_device = args.device or config.get('device') or row['oj'].get('judge',{}).get('device','cpu')
     if validation_device == 'cpu' and int(row['resources']['gpus']):
         env['ABENCH_CALIBRATION_CPU'] = '1'
@@ -324,8 +302,40 @@ def calibrate(argv: list[str]) -> int:
         command += ['--image', args.image]
     if args.backend == 'host':
         command += ['--smoke']
-    print(json.dumps({'calibration_work': str(work), 'run': str(ROOT / 'runs' / args.case / run_id)}), flush=True)
-    return call('sandbox_runner.py', command, root=work, env=env)
+    from agents import run_dir
+    print(json.dumps({'run': str(run_dir(ROOT / 'runs', 'oracle', None, args.case, run_id)), 'synthetic_data': bool(data.get('synthetic'))}), flush=True)
+    return call('sandbox_runner.py', command, env=env)
+
+
+def prepare_command(argv: list[str]) -> int:
+    """Download, freeze, calibrate and activate the selected cases (tools/prepare/batch.py)."""
+    sys.path.insert(0, str(ROOT / 'tools' / 'prepare'))
+    import batch
+    ap = argparse.ArgumentParser(prog='abench prepare', description=batch.__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    add_filters(ap)
+    ap.add_argument('--raw-root', required=True, help='raw files go to RAW_ROOT/<case>/')
+    ap.add_argument('--hidden-key-file', default=str(Path.home() / '.abench/hidden.key'))
+    ap.add_argument('--steps', default=','.join(batch.STEPS), help='comma-separated subset of ' + ','.join(batch.STEPS))
+    ap.add_argument('--gpus', help='comma-separated GPUs for calibrating GPU cases, one case per GPU at a time')
+    ap.add_argument('--jobs', type=int, default=4, help='cases downloaded and frozen at a time (default 4)')
+    ap.add_argument('--allow-nonreference-gpu', action='store_true')
+    ap.add_argument('--allow-unverified', action='store_true', help='passed to tools/prepare/run.py')
+    ap.add_argument('--run-id', default='ojcal-prepare', help='calibration run id')
+    args = ap.parse_args(argv)
+    steps = [s for s in args.steps.split(',') if s]
+    if unknown := set(steps) - set(batch.STEPS):
+        ap.error('unknown steps: ' + ', '.join(sorted(unknown)))
+    key = Path(args.hidden_key_file).expanduser()
+    if {'freeze', 'calibrate'} & set(steps) and not key.is_file():
+        ap.error(f'no key at {key}; create one with: python3 tools/hidden_store.py keygen {key}')
+    rows, suite = selected(args)
+    results = batch.prepare(rows, Path(args.raw_root).expanduser().resolve(), key, steps, gpus=args.gpus,
+                            nonreference=args.allow_nonreference_gpu, allow_unverified=args.allow_unverified,
+                            run_id=args.run_id, log=lambda line: print(line, file=sys.stderr, flush=True), jobs=args.jobs)
+    emit({'suite': suite, 'status': dict(Counter(r['status'] for r in results)),
+          'needs_operator': {r['case']: r['reason'] for r in results if r['status'] != 'done'}, 'cases': results})
+    return int(any(r['status'] == 'failed' for r in results))
 
 
 def jobs_command(argv: list[str]) -> int:
@@ -341,14 +351,16 @@ def jobs_command(argv: list[str]) -> int:
     run.add_argument('--dry-run', action='store_true')
     run.add_argument('--allow-nonreference-gpu', action='store_true')
     run.add_argument('--allow-shared-gpu', action='store_true', help='unscored Budget validation; Pro remains exclusive')
-    run.add_argument('--order', choices=('resources', 'case', 'input'), default='resources')
+    run.add_argument('--order', choices=('category', 'resources', 'case', 'input'), default='category')
     run.add_argument('--job-id')
     run.add_argument('--retries', type=int, default=1)
+    run.add_argument('--provider-concurrency', type=int, default=1)
     for action in ('resume', 'status', 'report'):
         p = sub.add_parser(action)
         p.add_argument('job')
         if action == 'resume':
             p.add_argument('-n', '--n-concurrent', type=int)
+            p.add_argument('--provider-concurrency', type=int)
             p.add_argument('--allow-shared-gpu', action='store_true', default=None)
             p.add_argument('--allow-nonreference-gpu', action='store_true', default=None)
     args, extra = ap.parse_known_args(argv)
@@ -371,12 +383,14 @@ def jobs_command(argv: list[str]) -> int:
                     incompatible.append({'agent': agent_name, 'model': model, 'reason': str(error)})
         if not pairs:
             ap.error('no runnable harness/model combination: ' + '; '.join(x['reason'] for x in incompatible))
+        scheduler_info = jobs.scheduler_docker_info(extra) if not args.dry_run else None
+        daemon_cpus = ((scheduler_info or {}).get('raw') or {}).get('NCPU')
         doc = jobs.plan(rows, agents, models, args.attempts, allow_nonreference=args.allow_nonreference_gpu,
-                        order=args.order, allow_shared=args.allow_shared_gpu, pairs=pairs)
+                        order=args.order, allow_shared=args.allow_shared_gpu, pairs=pairs, cpu_count=daemon_cpus)
         doc['skipped_combinations'] = incompatible
         doc.update(id=args.job_id or time.strftime('%Y%m%d-%H%M%S-') + secrets.token_hex(3), suite=suite,
                    created_at=time.time(), runner_options=extra, allow_nonreference_gpu=args.allow_nonreference_gpu,
-                   allow_shared_gpu=args.allow_shared_gpu, max_gpu_hours=args.max_gpu_hours, retries=args.retries, n_concurrent=args.n_concurrent)
+                   allow_shared_gpu=args.allow_shared_gpu, max_gpu_hours=args.max_gpu_hours, retries=args.retries, n_concurrent=args.n_concurrent, provider_concurrency=args.provider_concurrency)
         if args.dry_run:
             emit(doc)
             return 0
@@ -386,12 +400,12 @@ def jobs_command(argv: list[str]) -> int:
         jobs.save(path, doc)
         doc = jobs.execute(doc, path, concurrency=args.n_concurrent, max_gpu_hours=args.max_gpu_hours,
                            retries=args.retries, runner_options=extra, allow_nonreference=args.allow_nonreference_gpu,
-                           allow_shared=args.allow_shared_gpu)
+                           allow_shared=args.allow_shared_gpu, provider_concurrency=args.provider_concurrency)
     else:
         path = Path(args.job)
         if not path.is_file():
             path = ROOT / 'jobs' / args.job / 'job.json'
-        doc = json.loads(path.read_text())
+        doc = jobs.load(path)
         if args.action == 'resume':
             suite_cases(doc['suite'], only={e['case'] for e in doc['entries']})
             if args.allow_shared_gpu is not None:
@@ -400,7 +414,8 @@ def jobs_command(argv: list[str]) -> int:
                 doc['allow_nonreference_gpu'] = args.allow_nonreference_gpu
             doc = jobs.execute(doc, path, concurrency=args.n_concurrent or doc.get('n_concurrent', 1), max_gpu_hours=doc.get('max_gpu_hours'),
                                retries=doc.get('retries', 1), runner_options=doc.get('runner_options'),
-                               allow_nonreference=doc.get('allow_nonreference_gpu', False), allow_shared=doc.get('allow_shared_gpu', False))
+                               allow_nonreference=doc.get('allow_nonreference_gpu', False), allow_shared=doc.get('allow_shared_gpu', False),
+                               provider_concurrency=args.provider_concurrency if args.provider_concurrency is not None else doc.get('provider_concurrency', 1))
         elif extra:
             ap.error('unexpected options: ' + ' '.join(extra))
     emit(jobs.report(doc) if args.action == 'report' else {'job': str(path), 'suite': doc['suite'],
@@ -408,11 +423,104 @@ def jobs_command(argv: list[str]) -> int:
     return int(any(e['state'] == 'failed' for e in doc['entries']))
 
 
+def cases_command(argv: list[str]) -> int:
+    """List selected cases using the shared catalog and frozen suite."""
+    ap = argparse.ArgumentParser(prog='abench cases')
+    ap.add_argument('action', choices=('list',))
+    add_filters(ap)
+    rows, suite = selected(ap.parse_args(argv))
+    for row in rows:
+        print('\t'.join(str(row[k]) for k in ('id', 'category', 'difficulty', 'resource_tier', 'area', 'type', 'subset')))
+    from collections import Counter
+    emit({'suite': suite, 'count': len(rows), 'categories': dict(Counter(r['category'] for r in rows)),
+          'distribution': distribution(rows)})
+    return 0
+
+
+def case_command(argv: list[str]) -> int:
+    """Check a case and optionally calibrate its frozen data."""
+    ap = argparse.ArgumentParser(prog='abench case')
+    ap.add_argument('action', choices=('check',))
+    ap.add_argument('case')
+    ap.add_argument('--no-calibrate', '--skip-calibration', action='store_true', help='only static checks; omit the oracle calibration')
+    a = ap.parse_args(argv)
+    rows = select_cases(load_catalog(), cases=a.case)
+    errors = catalog_errors(rows, check_site=False)
+    for tool, options in [('build_standard_cases.py', ['--case', a.case, '--check']),
+                          ('validate_task_statement.py', ['--case', a.case, '--strict'])]:
+        if call(tool, options):
+            errors.append(tool + ' failed')
+    prepare = ROOT / 'tools/prepare' / (a.case.lower().replace('-', '_') + '.py')
+    if not prepare.is_file() and a.case != 'IC-SPD-001':
+        errors.append('data preparation module missing')
+    from egress_proxy import policy_for_case
+    try:
+        policy_for_case(rows[0]['oj'], 'claude')
+        from container_policy import resources_for
+        resources_for(rows[0]['oj'])
+    except (ValueError, KeyError, RuntimeError) as e:
+        errors.append(str(e))
+    emit({'case': a.case, 'errors': errors})
+    if errors:
+        return 1
+    return 0 if a.no_calibrate else calibrate([a.case])
+
+
+def suites_command(argv: list[str]) -> int:
+    """List frozen suites or add one immutable suite version."""
+    ap = argparse.ArgumentParser(prog='abench suites', description='Frozen, versioned case suites.')
+    ap.add_argument('action', choices=('list', 'freeze'))
+    ap.add_argument('name', nargs='?', help='freeze: the new SUITE@MAJOR.MINOR.PATCH, e.g. all@2.0.1')
+    ap.add_argument('--cases', help='freeze: comma-separated members (default: all cases for `all`, '
+                                    'otherwise the members of the current default version)')
+    ap.add_argument('--default', action='store_true', help='freeze: make the new version the default')
+    a = ap.parse_args(argv)
+    if a.action == 'freeze':
+        if not a.name:
+            ap.error('freeze needs SUITE@VERSION')
+        emit(freeze_suite(a.name, cases=[c for c in (a.cases or '').split(',') if c] or None, default=a.default))
+        return 0
+    import yaml
+    doc = yaml.safe_load((ROOT / 'spec/suites.yaml').read_text())
+    emit({'default_versions': doc['default_versions'],
+          'suites': {k: len(v['cases']) for k, v in doc['suites'].items()}})
+    return 0
+
+
+def gc_command(argv: list[str]) -> int:
+    """Collect Docker objects using the explicit run or stale-object policy."""
+    from containers import Docker
+    ap = argparse.ArgumentParser(prog='abench gc', description='Remove Docker objects left by ABench runs.')
+    ap.add_argument('--run-id', help='every object of this run (agent, sidecar, judge), whatever its state')
+    ap.add_argument('--caches', action='store_true', help='also remove unused shared data caches (abench-data-*)')
+    ap.add_argument('--min-age-minutes', type=float, default=10,
+                    help='without --run-id: only touch stopped objects at least this old (default 10)')
+    ap.add_argument('--discard-recovery', action='store_true', help='with --run-id: discard retained stopped collection and private staging')
+    a = ap.parse_args(argv)
+    if a.discard_recovery and not a.run_id:
+        ap.error('--discard-recovery requires --run-id')
+    from agents.lifecycle import registry_root, read_json
+    retained = [read_json(path) for path in registry_root().glob('*.json')]
+    matches = [record for record in retained if record.get('run_id') == a.run_id]
+    if matches:
+        if not a.discard_recovery:
+            ap.error('run has retained collection; use recover, or explicitly --discard-recovery')
+        from agents.recovery import discard, discard_registered, pending_path, run_lock
+        for record in matches:
+            with run_lock(record['run']):
+                if pending_path(record['run']).is_file():
+                    discard(record['run'])
+                else:
+                    discard_registered(record)
+    emit(Docker().gc(a.run_id, caches=a.caches, min_age=a.min_age_minutes * 60))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('doctor', 'images', 'cases', 'case', 'suites', 'harnesses', 'run', 'calibrate', 'judge', 'jobs',
-                                            'gc', 'summarize'))
+    parser.add_argument('command', choices=('doctor', 'images', 'cases', 'case', 'suites', 'harnesses', 'prepare', 'run', 'calibrate',
+                                            'judge', 'recover', 'jobs', 'gc', 'summarize'))
     args, rest = parser.parse_known_args(argv)
     if args.command == 'doctor':
         return doctor()
@@ -425,77 +533,33 @@ def main(argv: list[str] | None = None) -> int:
         return call('sandbox_runner.py', rest)
     if args.command == 'calibrate':
         return calibrate(rest)
+    if args.command == 'prepare':
+        return prepare_command(rest)
     if args.command == 'jobs':
         return jobs_command(rest)
     if args.command == 'cases':
-        ap = argparse.ArgumentParser(prog='abench cases')
-        ap.add_argument('action', choices=('list',))
-        add_filters(ap)
-        rows, suite = selected(ap.parse_args(rest))
-        for row in rows:
-            print('\t'.join(str(row[k]) for k in ('id', 'difficulty', 'resource_tier', 'area', 'type', 'subset')))
-        emit({'suite': suite, 'count': len(rows), 'distribution': distribution(rows)})
-        return 0
+        return cases_command(rest)
     if args.command == 'case':
-        ap = argparse.ArgumentParser(prog='abench case')
-        ap.add_argument('action', choices=('check',))
-        ap.add_argument('case')
-        ap.add_argument('--no-calibrate', '--skip-calibration', action='store_true', help='only static checks; omit the oracle calibration')
-        a = ap.parse_args(rest)
-        rows = select_cases(load_catalog(), cases=a.case)
-        errors = catalog_errors(rows, check_site=False)
-        for tool, options in [('build_standard_cases.py', ['--case', a.case, '--check']),
-                              ('validate_task_statement.py', ['--case', a.case, '--strict'])]:
-            if call(tool, options):
-                errors.append(tool + ' failed')
-        prepare = ROOT / 'tools/prepare' / (a.case.lower().replace('-', '_') + '.py')
-        if not prepare.is_file() and a.case != 'IC-SPD-001':
-            errors.append('data preparation module missing')
-        from egress_proxy import policy_for_case
-        try:
-            policy_for_case(rows[0]['oj'], 'claude')
-            from container_policy import resources_for
-            resources_for(rows[0]['oj'])
-        except (ValueError, KeyError, RuntimeError) as e:
-            errors.append(str(e))
-        emit({'case': a.case, 'errors': errors})
-        if errors:
-            return 1
-        return 0 if a.no_calibrate else calibrate([a.case])
+        return case_command(rest)
     if args.command == 'harnesses':
         from agents import HARNESSES, get_agent
         emit([get_agent(name).capabilities() for name in HARNESSES])
         return 0
     if args.command == 'suites':
-        ap = argparse.ArgumentParser(prog='abench suites', description='Frozen, versioned case suites.')
-        ap.add_argument('action', choices=('list', 'freeze'))
-        ap.add_argument('name', nargs='?', help='freeze: the new SUITE@MAJOR.MINOR.PATCH, e.g. all@2.0.1')
-        ap.add_argument('--cases', help='freeze: comma-separated members (default: all cases for `all`, '
-                                        'otherwise the members of the current default version)')
-        ap.add_argument('--default', action='store_true', help='freeze: make the new version the default')
-        a = ap.parse_args(rest)
-        if a.action == 'freeze':
-            if not a.name:
-                ap.error('freeze needs SUITE@VERSION')
-            emit(freeze_suite(a.name, cases=[c for c in (a.cases or '').split(',') if c] or None, default=a.default))
-            return 0
-        import yaml
-        doc = yaml.safe_load((ROOT / 'spec/suites.yaml').read_text())
-        emit({'default_versions': doc['default_versions'],
-              'suites': {k: len(v['cases']) for k, v in doc['suites'].items()}})
-        return 0
+        return suites_command(rest)
     if args.command == 'judge':
         return judge_run(rest)
+    if args.command == 'recover':
+        ap = argparse.ArgumentParser(prog='abench recover', description='Resume stopped-container collection without running the agent again.')
+        ap.add_argument('--run', required=True)
+        ap.add_argument('--hidden-key-file')
+        ap.add_argument('--gpus')
+        ap.add_argument('--collect-only', action='store_true', help='finalize the original agent record, then judge separately')
+        options = ap.parse_args(rest)
+        from agents.runner import recover
+        return recover(options.run, hidden_key_file=options.hidden_key_file, gpus=options.gpus, collect_only=options.collect_only)
     if args.command == 'gc':
-        from containers import Docker
-        ap = argparse.ArgumentParser(prog='abench gc', description='Remove Docker objects left by ABench runs.')
-        ap.add_argument('--run-id', help='every object of this run (agent, sidecar, judge), whatever its state')
-        ap.add_argument('--caches', action='store_true', help='also remove unused shared data caches (abench-data-*)')
-        ap.add_argument('--min-age-minutes', type=float, default=10,
-                        help='without --run-id: only touch stopped objects at least this old (default 10)')
-        a = ap.parse_args(rest)
-        emit(Docker().gc(a.run_id, caches=a.caches, min_age=a.min_age_minutes * 60))
-        return 0
+        return gc_command(rest)
     return subprocess.call([sys.executable, str(ROOT / 'sandbox/calibration/summarize.py'), *rest])
 
 

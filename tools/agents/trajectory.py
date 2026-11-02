@@ -176,7 +176,7 @@ class _Summary:
     def __init__(self):
         self.events, self.tools, self.bash, self.models = 0, {}, [], set()
         self.usage, self.turns, self.error, self.final, self.finished = {}, 0, None, '', False
-        self.provider = None
+        self.provider, self.truncated = None, 0
 
     def provider_failure(self, status, message):
         self.provider = provider_error(status, message, terminal=True)
@@ -199,6 +199,7 @@ class _Summary:
                 continue
             if isinstance(event, dict):
                 self.events += 1
+                self.truncated += event.get('truncated') is True    # the harness cut a long field of this event
                 if self.provider:                    # a later event means the provider error did not end the run
                     self.provider['terminal'] = False
                 yield event
@@ -207,8 +208,9 @@ class _Summary:
         if not self.events:
             return None
         failed = bool(self.error) or not self.finished
-        return {'events': self.events, 'tool_calls': self.tools, 'bash_commands': self.bash,
-                'usage': self.usage, 'actual_models': sorted(self.models), 'provider_error': self.provider,
+        return {'events': self.events, 'truncated_events': self.truncated, 'tool_calls': self.tools,
+                'bash_commands': self.bash, 'usage': self.usage, 'actual_models': sorted(self.models),
+                'provider_error': self.provider,
                 'result': {'subtype': 'error' if failed else 'success', 'is_error': failed, 'num_turns': self.turns,
                            'error': self.error or (None if self.finished else 'no terminal event'),
                            'final_text': self.final[-2000:]}}
@@ -303,6 +305,41 @@ def summarize_dsh(raw: bytes, stderr: bytes = b'') -> dict[str, Any] | None:
         code, message = diagnostics[-1]
         s.provider = provider_error(DSH_CODES.get(code), f'{code}: {message}', terminal=True)
     return s.result()
+
+
+def summarize_dsh_sessions(directory) -> dict[str, Any] | None:
+    """DSH session logs (.dsh/sessions/**/session.v4.jsonl[.zstd]) keep every tool result in full and name the model
+    of each response (assistant/message data.message.source.model), which `--json` stdout does not."""
+    from pathlib import Path
+    from .native_logs import decompressed
+    files = sorted(p for p in Path(directory).glob('.dsh/sessions/**/session.v*.jsonl*') if p.is_file())
+    if not files:
+        return None
+    out = {'files': [p.relative_to(directory).as_posix() for p in files], 'responses': 0, 'tool_results': 0,
+           'actual_models': [], 'readable': True}
+    models = set()
+    for path in files:
+        try:
+            text = decompressed(path).decode('utf-8', 'replace')
+        except Exception as exc:              # a record must not fail the run; say why it is incomplete
+            out['readable'], out['error'] = False, f'{path.name}: {type(exc).__name__}: {exc}'[:300]
+            continue
+        for line in text.splitlines():
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(event, dict):
+                continue
+            if event.get('type') == 'assistant/message':
+                out['responses'] += 1
+                source = ((event.get('data') or {}).get('message') or {}).get('source') or {}
+                if isinstance(source.get('model'), str):
+                    models.add(source['model'])
+            elif event.get('type') == 'tool/result':
+                out['tool_results'] += 1
+    out['actual_models'] = sorted(models)
+    return out
 
 
 def summarize_zcode(raw: bytes, stderr: bytes = b'') -> dict[str, Any] | None:

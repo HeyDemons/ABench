@@ -43,5 +43,28 @@ class ReferenceIntegrityTest(unittest.TestCase):
         self.assertTrue(any("title mismatch" in x for x in result["errors"]))
 
 
+class ReportStructureTest(unittest.TestCase):
+    """The bibliography counts by its ltx_bibitem entries, whatever class its section carries."""
+    def check(self, html: str) -> list[str]:
+        import shutil
+        import validate_submission
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root)
+        shutil.copytree(ROOT / "cases/RS-SEQ-001/example_submission", root / "sub")
+        (root / "sub/report/index.html").write_text(html, encoding="utf-8")
+        errors: list[str] = []
+        oj = validate_submission.load_oj("RS-SEQ-001")
+        validate_submission.validate_report(root / "sub", "RS-SEQ-001", validate_submission.load_profiles(), errors, oj)
+        return [e for e in errors if "arXiv HTML structure" in e]
+
+    def test_bibliography_in_an_ordinary_section_is_accepted_but_entries_are_required(self) -> None:
+        html = (ROOT / "cases/RS-SEQ-001/example_submission/report/index.html").read_text(encoding="utf-8")
+        self.assertIn('class="ltx_bibliography"', html)
+        self.assertEqual(self.check(html), [])
+        self.assertEqual(self.check(html.replace('class="ltx_bibliography"', 'class="ltx_section"')), [])
+        self.assertEqual(self.check(html.replace("ltx_bibitem", "ltx_item")),
+                         ["report/index.html lacks arXiv HTML structure: .ltx_bibitem"])
+
+
 if __name__ == "__main__":
     unittest.main()

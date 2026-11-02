@@ -22,6 +22,7 @@ import hmac
 import os
 import secrets
 import sys
+import tempfile
 from pathlib import Path
 
 MAGIC = b"ABHID1"
@@ -32,13 +33,76 @@ def _keys(master: bytes) -> tuple[bytes, bytes]:
             hmac.new(master, b"abench-hidden-mac", hashlib.sha256).digest())
 
 
-def _xor_stream(enc_key: bytes, nonce: bytes, data: bytes) -> bytes:
+def _xor_stream(enc_key: bytes, nonce: bytes, data: bytes, *, offset: int = 0) -> bytes:
     out = bytearray(len(data))
-    for block in range(0, len(data), 32):
-        ks = hashlib.sha256(enc_key + nonce + (block // 32).to_bytes(8, "big")).digest()
-        chunk = data[block:block + 32]
-        out[block:block + len(chunk)] = bytes(a ^ b for a, b in zip(chunk, ks))
+    prefix = enc_key + nonce
+    position = 0
+    while position < len(data):
+        counter, skip = divmod(offset + position, 32)
+        size = min(32 - skip, len(data) - position)
+        ks = hashlib.sha256(prefix + counter.to_bytes(8, "big")).digest()
+        chunk = data[position:position + size]
+        value = int.from_bytes(chunk, "little") ^ int.from_bytes(ks[skip:skip + size], "little")
+        out[position:position + size] = value.to_bytes(size, "little")
+        position += size
     return bytes(out)
+
+
+def encrypt_stream(master, source, destination, *, chunk_size=1024 * 1024):
+    """Write the existing ABHID1 format with bounded buffers; report its plaintext identity."""
+    if chunk_size <= 0:
+        raise ValueError("chunk size must be positive")
+    enc_key, mac_key = _keys(master)
+    nonce = secrets.token_bytes(16)
+    header = MAGIC + nonce
+    mac, digest = hmac.new(mac_key, header, hashlib.sha256), hashlib.sha256()
+    destination.write(header)
+    offset = 0
+    for block in iter(lambda: source.read(chunk_size), b""):
+        digest.update(block)
+        encrypted = _xor_stream(enc_key, nonce, block, offset=offset)
+        mac.update(encrypted)
+        destination.write(encrypted)
+        offset += len(block)
+    destination.write(mac.digest())
+    return {"sha256_plain": digest.hexdigest(), "bytes": offset}
+
+
+def decrypt_stream(master, source, destination, *, chunk_size=1024 * 1024):
+    """Authenticate a seekable ABHID1 source before writing any plaintext to a private parent stream."""
+    if chunk_size <= 0:
+        raise ValueError("chunk size must be positive")
+    start = source.tell()
+    header = source.read(len(MAGIC) + 16)
+    source.seek(0, 2)
+    end = source.tell()
+    length = end - start - len(header) - 32
+    if not header.startswith(MAGIC) or len(header) != len(MAGIC) + 16 or length < 0:
+        raise ValueError("not an ABench hidden-store file")
+    enc_key, mac_key = _keys(master)
+    mac = hmac.new(mac_key, header, hashlib.sha256)
+    source.seek(start + len(header))
+    # Decode exactly the ciphertext authenticated here, even if the original file changes afterwards.
+    with tempfile.TemporaryFile() as verified:
+        remaining = length
+        while remaining:
+            block = source.read(min(chunk_size, remaining))
+            if not block:
+                raise ValueError("truncated hidden-store file")
+            mac.update(block)
+            verified.write(block)
+            remaining -= len(block)
+        if not hmac.compare_digest(mac.digest(), source.read(32)):
+            raise ValueError("hidden-store integrity check failed (wrong key or modified file)")
+        verified.seek(0)
+        offset, digest = 0, hashlib.sha256()
+        while offset < length:
+            block = verified.read(min(chunk_size, length - offset))
+            plain = _xor_stream(enc_key, header[len(MAGIC):], block, offset=offset)
+            digest.update(plain)
+            destination.write(plain)
+            offset += len(block)
+    return {"sha256_plain": digest.hexdigest(), "bytes": offset}
 
 
 def read_key(path: Path) -> bytes:
@@ -80,10 +144,22 @@ def main(argv: list[str]) -> int:
         print("wrote", p); return 0
     if cmd in ("encrypt", "decrypt") and len(argv) == 5:
         key = read_key(Path(argv[2]))
-        data = Path(argv[3]).read_bytes()
-        out = encrypt_bytes(key, data) if cmd == "encrypt" else decrypt_bytes(key, data)
-        Path(argv[4]).write_bytes(out)
-        print("wrote", argv[4], len(out), "bytes"); return 0
+        target = Path(argv[4])
+        temporary = None
+        try:
+            with Path(argv[3]).open('rb') as source, \
+                    tempfile.NamedTemporaryFile(dir=target.parent, delete=False) as output:
+                temporary = Path(output.name)
+                transform = encrypt_stream if cmd == 'encrypt' else decrypt_stream
+                transform(key, source, output)
+                size = output.tell()
+                output.flush()
+                os.fsync(output.fileno())
+            temporary.replace(target)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+        print("wrote", argv[4], size, "bytes"); return 0
     print(__doc__); return 2
 
 

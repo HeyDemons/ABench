@@ -13,7 +13,8 @@ Operator files used by `./abench`; see [the runner contract](../spec/sandbox_run
 | `calibration/summarize.py` | summarizes evaluation records; also available through `./abench summarize` |
 | `mock_agent.sh` | deterministic agent for pipeline checks, invoked by the mock adapter |
 
-Use `./abench calibrate ID --data synthetic` for an isolated Docker calibration. For real data use
-`--data /path/to/raw`; generated held-out sets use `--data generated`. Run records remain under `runs/ID/RUN/`.
+Freeze a case's data with `tools/prepare/run.py` (`--raw-dir` for real data, `--synthetic N` with
+`ABENCH_ALLOW_SYNTHETIC=1` for a plumbing check), then `./abench calibrate ID` runs the oracle and the judge in
+Docker on that data, from this checkout. Run records are filed under `runs/<harness>-<model>/CATEGORY/ID/RUN/` (`runs/oracle/CATEGORY/ID/RUN/` for calibration).
 The former sudo calibration and local launch scripts have been replaced by `./abench calibrate` and
 `./abench run`. The Docker CLI and ordinary user permissions are sufficient for current commands.

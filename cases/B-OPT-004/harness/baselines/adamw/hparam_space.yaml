@@ -1,7 +1,8 @@
-# lr and wd are placeholders until the operator's pre-activation sweep (see the case's task statement).
+# lr and wd from the operator's pre-activation sweep (task statement): lr {1e-3, 2e-3, 3e-3, 4.5e-3, 6e-3} x wd
+# {0.05, 0.1} at batch 32 with the case's schedule on the self-check split (seed 1000); best dev loss 4.354.
 rule: AdamW
 tunable:
-  lr: {default: 0.003, range: [0.0003, 0.01], scale: log}
+  lr: {default: 0.002, range: [0.0003, 0.01], scale: log}
   wd: {default: 0.1, range: [0.0, 0.2], scale: linear}
 fixed:
   b1: 0.9

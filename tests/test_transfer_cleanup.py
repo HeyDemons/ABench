@@ -129,6 +129,7 @@ class CleanupEvidenceTest(unittest.TestCase):
         session.proc.poll.return_value = None
         session.proc.kill.side_effect = OSError('cannot reap local client')
         session.container, session.input_volume, session.helpers, session.record = 'cid', 'volume', [], {}
+        session.stopped = None
         with self.assertRaisesRegex(ValueError, 'original stage error'):
             try:
                 raise ValueError('original stage error')
@@ -179,10 +180,12 @@ class CleanupEvidenceTest(unittest.TestCase):
             for error in (DockerPathMissing('absent'), DockerError('daemon disconnected')):
                 session = DockerStageSession.__new__(DockerStageSession)
                 session.docker = Mock()
+                session.docker.inspect.return_value = {'State': {'Running': False}}
                 session.docker.download.side_effect = error
                 session.docker.remove.return_value = SimpleNamespace(returncode=0)
                 session.docker.remove_volume.return_value = SimpleNamespace(returncode=0)
                 session.container, session.input_volume, session.helpers = 'cid', 'volume', []
+                session.stopped = None
                 session.stage, session.artifacts, session.work, session.record = 'predict', (), Path(raw), {}
                 if isinstance(error, DockerPathMissing):
                     session.collect()
@@ -192,6 +195,30 @@ class CleanupEvidenceTest(unittest.TestCase):
                 self.assertEqual(session.record['cleanup']['containers'], 1)
                 self.assertEqual(session.record['cleanup']['volumes'], 1)
 
+    def test_judge_client_exit_does_not_mean_container_exit(self):
+        session = DockerStageSession.__new__(DockerStageSession)
+        session.docker = Mock()
+        session.docker.inspect.side_effect = [{'State': {'Running': True}}, {'State': {'Running': False}}]
+        session.proc = Mock()
+        session.proc.poll.return_value = 1  # Docker client disconnected, container is still running.
+        session.container, session.input_volume, session.helpers, session.record = 'cid', None, [], {}
+        session.stopped = None
+        session.close()
+        session.docker.kill.assert_called_once_with('cid')
+        self.assertTrue(session.record['stopped_before_collection'])
+        self.assertEqual(session.stopped, 'cid')         # collect() does not ask Docker again
+
+    def test_judge_refuses_to_download_from_running_container(self):
+        session = DockerStageSession.__new__(DockerStageSession)
+        session.docker = Mock()
+        session.docker.inspect.return_value = {'State': {'Running': True}}
+        session.docker.remove.return_value = SimpleNamespace(returncode=0)
+        session.container, session.input_volume, session.helpers, session.record = 'cid', None, [], {}
+        session.stopped = None
+        with self.assertRaisesRegex(DockerError, 'still running'):
+            session.collect()
+        session.docker.download.assert_not_called()
+
     def test_oversized_stage_logs_are_skipped_but_outputs_keep_their_cap(self):
         from judge_container import LOG_MAX_BYTES
         def download(container, source, destination, **limits):
@@ -200,14 +227,17 @@ class CleanupEvidenceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             session = DockerStageSession.__new__(DockerStageSession)
             session.docker = Mock()
+            session.docker.inspect.return_value = {'State': {'Running': False}}
             session.docker.download.side_effect = download
             session.docker.remove.return_value = SimpleNamespace(returncode=0)
             session.container, session.input_volume, session.helpers = 'cid', None, []
+            session.stopped = None
             session.stage, session.artifacts, session.work, session.record = 'predict', (), Path(raw), {}
             session.collect()
             self.assertEqual([x['name'] for x in session.record['logs_not_collected']], ['_stdout.txt', '_stderr.txt'])
             caps = {call.args[1].rsplit('/', 1)[1]: call.kwargs['max_bytes'] for call in session.docker.download.call_args_list}
             self.assertEqual(caps['predict.out.npz'], 8 * 1024**3)
+            session.container = 'next-cid'  # collect() removed the previous stage container.
             session.docker.download.side_effect = ValueError('archive exceeds byte limit')
             with self.assertRaisesRegex(ValueError, 'byte limit'):          # an oversized output is still an error
                 session.collect()

@@ -205,6 +205,29 @@ def agent_env(args: argparse.Namespace, paths: dict[str, Path]) -> tuple[dict[st
     return env, passed
 
 
+def resource_limits(oj: dict, sandbox: dict, timeout_seconds: float) -> dict:
+    """Resource information from the same policy and verified inspect used to create the sandbox."""
+    from container_policy import resources_for, bytes_value
+    requested = sandbox.get('resources') or resources_for(oj)
+    actual = ((sandbox.get('inspect') or {}).get('resource_enforcement') or {}).get('actual') or {}
+    enforced = sandbox.get('backend') == 'docker' and sandbox.get('resources_enforced') is True
+    limits = {'cpu_cores': actual.get('cpus', 0) / 1e9 if enforced else None,
+              'memory_bytes': actual.get('memory') if enforced else None,
+              'pids': actual.get('pids') if enforced else None,
+              'shm_bytes': bytes_value(requested['shm_size']) if enforced else None}
+    current = (sandbox.get('probes') or {}).get('memory_current_bytes')
+    return {'schema': 'abench.resource_limits/v1', 'enforced': enforced, 'limits': limits,
+            'memory_current_bytes_at_start': current,
+            'memory_headroom_bytes_at_start': (max(0, limits['memory_bytes'] - current)
+                                               if limits['memory_bytes'] is not None and current is not None else None),
+            'requested': requested, 'session_seconds': timeout_seconds,
+            'development_budget': oj.get('agent_budget') or {},
+            'gpu_count': int(requested.get('gpus', 0)),
+            'shared_gpu': bool(sandbox.get('shared_gpu_validation')),
+            'gpus': [{k: g.get(k) for k in ('index', 'name', 'memory_mb', 'free_memory_mb')}
+                     for g in sandbox.get('gpu_inventory') or []]}
+
+
 def agent_prompt(paths: dict[str, Path], network: str = "none") -> str:
     view = paths["view"]
     task = (view / "task.md").read_text(encoding="utf-8")
@@ -256,10 +279,12 @@ def paper_index_info(arg: str | None) -> dict[str, Any] | None:
 def filtered_paper_index(src: str, exclude: list, dst: Path) -> dict[str, Any]:
     """A copy of the paper index without the given arXiv ids (judgment cases: the later papers that settle the
     verdicts). The list itself never reaches the sandbox; the copy is what the agent's tool opens."""
+    from contextlib import closing
     import sqlite3
     dst.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(f"file:{src}?mode=ro", uri=True) as a, sqlite3.connect(dst) as b:
-        a.backup(b)
+    with closing(sqlite3.connect(f"file:{src}?mode=ro", uri=True)) as a, closing(sqlite3.connect(dst)) as b:
+        with a, b:
+            a.backup(b)
     con = sqlite3.connect(dst)
     try:
         removed = 0

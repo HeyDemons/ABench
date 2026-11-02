@@ -21,6 +21,8 @@ def apply_agent_attestation(evaluation: dict, agent_record: dict) -> dict:
         if (cli.get('verified') is not True or not cli.get('requested_version')
                 or cli.get('actual_version') != cli.get('requested_version')):
             reasons.append('actual harness CLI version not verified')
+        if not (sandbox.get('harness_bundle') or {}).get('locked'):
+            reasons.append('harness CLI bundle is not the one locked on this host')
     if sandbox.get('resources_enforced') is not True:
         reasons.append('container resource limits are not enforced')
     remaining = (sandbox.get('cleanup') or {}).get('remaining') or {}
@@ -36,6 +38,13 @@ def apply_agent_attestation(evaluation: dict, agent_record: dict) -> dict:
     evaluation['agent_hardware'] = {'gpu_class_matches': sandbox.get('gpu_class_matches'),
                                     'gpus': [{k: g.get(k) for k in ('name', 'class', 'memory_mb')}
                                              for g in sandbox.get('gpu_inventory') or []]}
+    locks = {'agent': attestation.get('lock'), 'judge': (evaluation.get('judge_dependency') or {}).get('image_lock'),
+             'sidecar': ((sandbox.get('sidecar') or {}).get('image_attestation') or {}).get('lock'),
+             'harness': (sandbox.get('harness_bundle') or {}).get('lock')}
+    evaluation['image_locks'] = locks
+    if 'local' in locks.values():
+        evaluation['image_lock_note'] = ('scored with host-local locks (spec/env/images.local.lock.yaml): the images '
+                                         'and harness bundles are unpublished and cannot be pulled elsewhere')
     if sandbox.get('platform') != 'linux/amd64':
         reasons.append('non-reference platform')
     if network.get('mode') not in ('none', 'egress'):
@@ -60,5 +69,7 @@ def apply_agent_attestation(evaluation: dict, agent_record: dict) -> dict:
     if reasons:
         evaluation['scorable'] = False
         previous = evaluation.get('scoreability_reason')
-        evaluation['scoreability_reason'] = '; '.join(dict.fromkeys(x for x in [previous, *reasons] if x))
+        # The judge may already give the same reason (a CPU override or cap applies to both containers).
+        pieces = [piece for x in [previous, *reasons] if x for piece in x.split('; ')]
+        evaluation['scoreability_reason'] = '; '.join(dict.fromkeys(pieces))
     return evaluation

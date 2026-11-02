@@ -1,7 +1,7 @@
 schema: abench.suites/v1
 default_versions:
-  all: 2.0.0
-  calibration: '2026.10'
+  all: 2.2.1
+  calibration: 2.2.0
 suites:
   all@2026.10:
     cases:
@@ -898,3 +898,1368 @@ suites:
       environment:
         profile: pro-h100
         version: '2026.10'
+  all@2.1.0:
+    created_at: '2026-11-02'
+    cases:
+    - id: A-HYB-001
+      spec_sha256: 6340c2e1c123ecce4958a79ac6586b4f63cc7ec684da5dc7d94dae5679110dab
+      judge_sha256: 386425d35487cf1f2877b2d88041b9566673582abb5b027a9df6f691bb3c1225
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: A-LIN-002
+      spec_sha256: 0f617638890c3d6b18cab9b24ba9a9abc7c176bd3e2066d308ff25cd788a049d
+      judge_sha256: 77881f5107cdee2f5b2c932c1dd7105296544e49fbcd3b6e75a5dbf80cef0cac
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: A-MOE-003
+      spec_sha256: 21c01e1612ee09d3632c609ffb37cba44af3ea535c8c04d98f5cd5959dbd5652
+      judge_sha256: ad4370d12381f8f3ad2961da8b80cfd10f1b47f242c8b68197afa5aa673731c1
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: A-KV-004
+      spec_sha256: 765f7062b0dfe584440ab12f0f76e88cbf788a2aab8110ba7704d23ba38fcf54
+      judge_sha256: 3cde113f1ee35b7d2a7cf77b97155204a71eb43ebcff3c63fa20e55dd4ae0c33
+      environment:
+        profile: gpu-torch-hf
+        version: '2026.11'
+    - id: A-NORM-005
+      spec_sha256: efba6327fa2fa52312302e398300cb9bfe0c22c9f7c3704e5370db24c3dc644b
+      judge_sha256: 8feb1827707a580f34359f8eb5fbde1e1e2f2d53771063b19a1215cf5422c4c7
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: A-LCTX-006
+      spec_sha256: fc64959340303138ebb8c8ab5907c6e5cca2103695a2523b003df521b6ffc97d
+      judge_sha256: 665b5e87a5244b17f3407c5666fb666e9fbcb76f993f1a6bc4556ef8feb916c0
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: B-OPT-001
+      spec_sha256: 5837067cbf166419d40421609fc0c8b344597edd7b1813f47d6451103004f74b
+      judge_sha256: 02c690f72ed3aa2ca6df5a8ff799acf3530746d9f922fb0af9d793816856aa7b
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: B-OPT-002
+      spec_sha256: b0543315aad96199abaf5eb273360e1e0a9bf487e5044f4da45c96aaecf1d968
+      judge_sha256: 5d574c12b6d67b580ba4b142e430faf6ead122201ea4959fd30f94afab30b031
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: B-OPT-003
+      spec_sha256: f9dfe50249f3d02992ba30bf3ddfeba5bab8adbbb382c6e882a96e3978c44573
+      judge_sha256: 66efa7deec8d9a604e302652aa40340dc027a0017f2edd5c4b69971003da25c2
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: B-OPT-004
+      spec_sha256: 9b5dbf1707afd40681c469640d02f44eb5df4e6a1bd4b64ead48ec23cee39be3
+      judge_sha256: b22e3a622baa1c57ee59afb4fb835fb2f2c8c263a6c380044e7981d979be0a2a
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: C-SPEC-001
+      spec_sha256: bc15f3847bddb46cd0c8be2331490f08c466ec8441d4272b8333c2c6aa22f96f
+      judge_sha256: 05d06a38a9d703a360fefda647ae91e436a76b4e9d866011e4596d46d30f4681
+      environment:
+        profile: gpu-torch-hf
+        version: '2026.11'
+    - id: C-KV-002
+      spec_sha256: 6888735bd6321e37ceb8d2cac4ae2e295a5248a1c4168fcffd116de41e31723f
+      judge_sha256: 24f86c94159780854db5a27d39cad56232feb93f415ba037013e1c0caf076ad3
+      environment:
+        profile: gpu-torch-hf
+        version: '2026.11'
+    - id: C-QNT-003
+      spec_sha256: 0b7f33cb2f1a1ff42d562ccdaa68f8b1b30c5b21a31170549a55752ecc05f797
+      judge_sha256: 7df65b05e028ba709f0ef592ae48bbe3213d749b5e8fb7f966f6c0e97531f860
+      environment:
+        profile: gpu-torch-hf
+        version: '2026.11'
+    - id: C-FA-004
+      spec_sha256: 5b5ea47c4930562c7e0a925d05667aea382bd2df73c9a91aea7e81e5978575e4
+      judge_sha256: fa6478bb119913e945b59594b5b0585c782eb41b54d5561dee4a219fd317214a
+      environment:
+        profile: gpu-torch-cuda-dev
+        version: '2026.11'
+    - id: V-GEN-001
+      spec_sha256: ae005577e5544a99935ee1c25df69533a9dd9c9d941562bac647bf43b451a0f7
+      judge_sha256: 35d8213e90ac88fa055a318887012fc4ae611593471827d7015fb85100a1ae3b
+      environment:
+        profile: gpu-torch-diffusion
+        version: '2026.11'
+    - id: V-SMP-002
+      spec_sha256: 543632521d90df8ed91073424d02473e49b57d152ffe258c31c868a7b07626f4
+      judge_sha256: c275fe86df092f89c6d97a2cca4a1f7c1ea56448735b04026a2146d558f234b2
+      environment:
+        profile: gpu-torch-diffusion
+        version: '2026.11'
+    - id: V-DIT-003
+      spec_sha256: 5ab0a32f5a6cd641331861f4f1424ff21d714026cd9e015924eb1f5743cc41c4
+      judge_sha256: 491880bc28fbb046550025c4ad63e1d651c561adc465c0d4370eece0810807b4
+      environment:
+        profile: gpu-torch-diffusion
+        version: '2026.11'
+    - id: V-DST-004
+      spec_sha256: 91a618f0ff86499277cb4524d7625546d1a25f3522ea735980b97d5e5967a552
+      judge_sha256: 243bde4e9bcfaedc9d4c15436eb2ac6ca31da9c60de95e3a1aab2a3b8b100c9d
+      environment:
+        profile: gpu-torch-diffusion
+        version: '2026.11'
+    - id: V-3DG-005
+      spec_sha256: fd68f5e71a6e44dc5deef4f573aecadffb8b9828f20b3313fbce60a23b1dfacc
+      judge_sha256: ad69ae3f5633a0ff74af9cb3b54f5ad1db03f208dfe56e132010b44590ce95d5
+      environment:
+        profile: gpu-torch-cuda-dev
+        version: '2026.11'
+    - id: V-BB-006
+      spec_sha256: 389f782da13c88724a175f6b86f290408bd2d4b471769c5eae9d16d8ab397117
+      judge_sha256: 0994bc4b5a17385a249e79867555fb209815fde0688d4f6d8932846a1ba9faf5
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: E-ACT-001
+      spec_sha256: f646767cb9ab755e65e519682c6de994758ddb52da8ed0d367fa0e90e9496796
+      judge_sha256: 967746ef465cc1da7eac8acf256933323b68d2f704371432bd0ee95456a214fb
+      environment:
+        profile: gpu-torch-sim
+        version: '2026.11'
+    - id: E-RT-002
+      spec_sha256: e79f7417a733bfebb887c8469f01b1e4637254dd9d8ed145c66781698c4d1beb
+      judge_sha256: a619c3e06ce95fb876a426622bbfed46d6b4aa6654e6617ba5c98b1e56370523
+      environment:
+        profile: gpu-torch-sim
+        version: '2026.11'
+    - id: E-VLA-003
+      spec_sha256: 8a8ff07b5fa762de227c2ef2ecde0aba652037730228bb1baf3556af8489659b
+      judge_sha256: c96b323ca5e07851597a8bed5a4cfba63ef5fa0409c0fc8f88eb9a9cbad845c5
+      environment:
+        profile: gpu-torch-sim
+        version: '2026.11'
+    - id: K-KB-001
+      spec_sha256: a93bfb588b6ba089563697ddbac3b7659a5c103910925015c3073b1715b20626
+      judge_sha256: f68532f4d3f703d8c99f3cf39943219d101a1827521deb7e12e1ed557e448939
+      environment:
+        profile: gpu-torch-cuda-dev
+        version: '2026.11'
+    - id: K-FUS-002
+      spec_sha256: 8ce7dff1968a2443fb17f16d787f310737157a7d9acc36694761465ffb44883c
+      judge_sha256: d99dbdbf757ba59fd1fe230ff1ef5d8f859ad5aeea6cdd355add1bf62e3fcc88
+      environment:
+        profile: gpu-torch-cuda-dev
+        version: '2026.11'
+    - id: K-FA-003
+      spec_sha256: 71a0f0777478a6b057272ce0240f18c6561c1c37caae3a72140cad2df226f636
+      judge_sha256: 7df01d228bff485218511a826472c1a6a70465e8f35cfdbe0807097024928ac5
+      environment:
+        profile: gpu-torch-cuda-dev
+        version: '2026.11'
+    - id: X-PPO-001
+      spec_sha256: b6a81c7a676d91c214eee529385af4cad309849a0217b3c79473b763efae2ea2
+      judge_sha256: 957cc47db43de640470a4706b46f98eca806c39b41e6e065475ef17505f309d6
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: X-GRPO-002
+      spec_sha256: c9b6cf38efd330b884ff6825092b97d86d96ab8d70e569ffd1b2505a927ca331
+      judge_sha256: 27752c1dc189d115f43bd7115a0c17217d9c1a16295830d3855216a0bc99a009
+      environment:
+        profile: gpu-torch-hf
+        version: '2026.11'
+    - id: X-MUP-003
+      spec_sha256: 86169807bf51dfa38be79299c4f1aeb73bc33037b5c9a84b77656fc86da729f6
+      judge_sha256: c5694010e64494f1421091c6728af4aa4ec5c99732afaf4e1e9a67564a7f4b89
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: X-LORA-004
+      spec_sha256: 0cf190fc65540a4724b02283e366da219367a2bc357fb07fbf614d2d8213a32e
+      judge_sha256: 279bae330987ccc293c116378117ae8aa80c7ad2fb16f72f16d3833444f755d0
+      environment:
+        profile: gpu-torch-hf
+        version: '2026.11'
+    - id: X-SFT-005
+      spec_sha256: 27e25e2123019736eb369310ec51e071f3afec01efa5dd0c5db02cf7532ab060
+      judge_sha256: 8677577b7122193fb4f737e52e84134cc74aff1f97594ed34bc6bd824a9d4148
+      environment:
+        profile: gpu-torch-hf
+        version: '2026.11'
+    - id: X-DPO-006
+      spec_sha256: 27381b5c311d63bf66ed724de22c12bfc1eda78b93d9cd6fe237cf6e84fe1b2d
+      judge_sha256: 9903c305c56bf23733060f7ce3e1622cf086d511ba0d4f525f90ec45a8d1faf5
+      environment:
+        profile: gpu-torch-hf
+        version: '2026.11'
+    - id: X-DATA-007
+      spec_sha256: fe7049e4862fcaa748c1841ed3a368b4b4bbc7d8e65b08125e3350c4b1538244
+      judge_sha256: 147aa359883d19b4bb4e679baae9b2599a39cac6f02a1b2f1765b55d15b0e6ac
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: X-DISTILL-010
+      spec_sha256: d5813d788eb5de11121cdbd4fe5b02c679fd4fe36a590850864fe8b8c3dcc248
+      judge_sha256: 12c96ad0f5651a99de5a49ef1edbfd01a5cfe3b25bad74565312fe405a0dbf92
+      environment:
+        profile: gpu-torch-hf
+        version: '2026.11'
+    - id: X-ROBUST-009
+      spec_sha256: 2d768cbebb21a813af941e8e06cebefc9619fea2f1bf62ca8491fbcf6a567ad6
+      judge_sha256: c717b3ef4a97b8d63f7a0a1fd72c3854b14e82e0f54cb9fb3d5a160683aac60c
+      environment:
+        profile: gpu-torch-hf
+        version: '2026.11'
+    - id: T-FM-001
+      spec_sha256: ee670968aae7b36c60f51652a70d524045e1ebba3af1a41fa568bd909a4b38af
+      judge_sha256: c1136f8ab68109ec6e7e668ebf933b1a2b200b73dc725002be1007696bf05830
+      environment:
+        profile: gpu-torch-sim
+        version: '2026.11'
+    - id: T-OPT-002
+      spec_sha256: bc9eccb7c52357175ba1755f14fdff3f6f390b6c90a7e2d9fce06eb57b4c2995
+      judge_sha256: 990d79c7f63f018e28d56d806d7f0316320323d9f681a58a12b22c8666e2341c
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: T-SPEC-003
+      spec_sha256: 8fcb8449ecac618cc8adfdbc9747d513e6fdfeaf60901e9bf706e1fd5c989630
+      judge_sha256: ffecdff1025afec16ec575486f87407bf68f2e598219ccde896962b7b7b6dafb
+      environment:
+        profile: gpu-torch-diffusion
+        version: '2026.11'
+    - id: T-MM-004
+      spec_sha256: b11f0179b41f0c0e998b294a46fffadec28cd8a8daebde770ffdf4f8d2299c9f
+      judge_sha256: 74e0277cf4f0aa82cf15e9ed7151ff90e996b728bfc52a9b0cfcad5fc603d5b5
+      environment:
+        profile: gpu-torch-hf
+        version: '2026.11'
+    - id: T-AUDIO-005
+      spec_sha256: fc62435f101c136222585665ee2db07de5496f73a0132627364d6069e4881aa8
+      judge_sha256: e62588a4c7e982773357a22cc26098515d598eded1f2924608e5b6f236466351
+      environment:
+        profile: gpu-torch-hf
+        version: '2026.11'
+    - id: U-LOOP-001
+      spec_sha256: 29ef0ede90f33c22e17711816912808fb715c642cbe67e7e74746fcaa41906d1
+      judge_sha256: c4f2093473c872a97ebfc7da6206bc12f50cc2aa20589acea6cd540f1c70fc58
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: U-LOOP-002
+      spec_sha256: 5009f714331c80bf39507b28b5ba86de835c8468022430ca3da3da192d4f8038
+      judge_sha256: 4b7179cc1320b77568ff3ffb7b75895f39e9c5274149c1bf51b505c2849d7993
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: U-LOOP-003
+      spec_sha256: 935f678e46e0a2407ec29dfab3ae4a89a593c7ad4a79f4dbd6a4f973d040a1c8
+      judge_sha256: c2f22a45586348c59aa0f7f9f7331ec5ad2d56fe355e9dba122afca3d2f42f56
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: U-DLM-004
+      spec_sha256: af0b621730f98c11544a5bc023b12ce0fb9c296830b8379c45b224da34b4c840
+      judge_sha256: 2f0de1432170a7ddd70f8c9f8c213aeb65418484361dcd3680447a7ede3530ff
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: U-DLM-005
+      spec_sha256: 825d40101d335c6295f1e1631531ea04b8ab6138cb2d4b0175d4217adcb1a70a
+      judge_sha256: b2ffd85d0d46417c62e133a18cb60559c70e08de5cb7413ef77fd214b36d219f
+      environment:
+        profile: gpu-torch-hf
+        version: '2026.11'
+    - id: U-BYTE-007
+      spec_sha256: cade2c07e204df771efcfbff7fe58ce51c2ab09c71b12e93b8c1a93b46096089
+      judge_sha256: d884e1c0e54f19f2cb15422083584444402d786286edc9f185f0f6bbb2e75d07
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: U-TTT-008
+      spec_sha256: cc5fe4fa5b1121d6026541abe15bf85b2d2e56092d5165af659c195655c2dd0e
+      judge_sha256: ce3a5501a595322bc7e0f73a68ccf660037a5d366768746cf43cc396af76563b
+      environment:
+        profile: gpu-torch-hf
+        version: '2026.11'
+    - id: U-KAN-009
+      spec_sha256: 7843f534fbd24a8362e8722538eff9f3fd86fd187bcac2d9a76d1165669516c0
+      judge_sha256: 59ab0cc9d2e29d1be44d35627fa92cd3c8d130b18b67ee8bfd1f2dc169a91593
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: FN-QA-004
+      spec_sha256: 2f75cb4ff1e7dbda906ee727eb69bfa73934ab47fb2373ac7007d8e7c45ba260
+      judge_sha256: d0eede2672d76817f641792f90c394d488727b7336a3f27e3947bd6d6a2d16fc
+      environment:
+        profile: gpu-torch-hf
+        version: '2026.11'
+    - id: FN-LTSF-005
+      spec_sha256: 9284fe88eec42ac6a782b04f97fa6f3060c87d3c5ba634e96451c565ff2d1197
+      judge_sha256: 9a055ff482bb403eafb1c179b403daba388b924f98cc76c727994131ba1234e4
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: LG-LONG-001
+      spec_sha256: f4cba4069bf4642e3ed56f3cde59408b0f5c061facc2a6793be3c5d847b97657
+      judge_sha256: 95b78659844bc9a4b6b9a703539bb3035eba9839c612c0d000e5df1c17ac00d0
+      environment:
+        profile: gpu-torch-hf
+        version: '2026.11'
+    - id: LG-RSN-003
+      spec_sha256: 4d489eed8c44a72be3ae55ad3b145ff1458cb2bdc505d191ea9a78b89c07156a
+      judge_sha256: 64d7786f05cab427dc437818f3ca7210ec0d65d38adf04a622f22cac2780ad43
+      environment:
+        profile: gpu-torch-hf
+        version: '2026.11'
+    - id: PH-NO-001
+      spec_sha256: 3f0a894c698cef0945f368c2496bf0b4ba366f26279758fb75dc8e7828593f44
+      judge_sha256: 253ece3aec3f97d003f99c03f18515fbf02cfa247252d8962ccc4a643b9cd194
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: PH-WELL-002
+      spec_sha256: 31e5c70b811cfb3cd67162730356f4b4c4da19ab6f343736bfeb5eea4216d7c0
+      judge_sha256: 5b256e12d0f5c553578a164c49b71b29e41017e81d2923952154fa09ba7c18e9
+      environment:
+        profile: gpu-torch-hf
+        version: '2026.11'
+    - id: PH-MLIP-003
+      spec_sha256: d119fa7fd39df0f14e8072b2e385909f1871c7f6a6c13f30f32022ca3a88f2ef
+      judge_sha256: be32da787192ee156b34672b7a9ab0a77d05ddab2de738a5dd1a067efdc45bee
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: PH-SYM-005
+      spec_sha256: d2ed537a67237d19738965e7a904cfde5dce15ce1759576979d223848c1bb775
+      judge_sha256: 56e8641cff2c6a27ac564ab122cd0c0faeeb3af674113dff6e2cb06923a39be7
+      environment:
+        profile: cpu-sci
+        version: '2026.10'
+    - id: BI-PROT-001
+      spec_sha256: ffe1b70acbb19941ce67083b09fc22a8ff38d92cc89e3836f7667d85ee62ab90
+      judge_sha256: c0fdbdcdf1ca0886ec11fc2ea52e6cc1f6de5b71f27aafb6a582ff4718df9158
+      environment:
+        profile: gpu-torch-hf
+        version: '2026.11'
+    - id: MD-SEG-001
+      spec_sha256: f6d26036b74d6c66194974bcb10c4f314a5a5e838ef138d9bed20f262c5fc998
+      judge_sha256: 47f1124fae02a0401d19323259efa7874d1188a5824c4356ad1f3c1bee2bd0ed
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: DS-GBM-001
+      spec_sha256: 2c09c41dfbe8dd5ab19bbd19de46a13793ba86a7c9e6b36ac3b972e152afad48
+      judge_sha256: 6b033d15326de63d2f7bc0db9b24cbea9188cfba5ed762a1be48d11e231e349f
+      environment:
+        profile: cpu-sci
+        version: '2026.10'
+    - id: DS-PIPE-002
+      spec_sha256: 6ec5f6a957e01cf887f150120797902d8ab728d943849aa46809a1e782528a4d
+      judge_sha256: 21649923d8dc4dd4e140189dfbd3e8391b50fb2c13dcda14e9ce6ea7b87d40b8
+      environment:
+        profile: cpu-sci
+        version: '2026.10'
+    - id: IC-SPD-001
+      spec_sha256: 30bd01c387ad539fa9ed7abf8ed49afa96cd8c298f73a3a0a81e2d42693b3e1b
+      judge_sha256: ff1e56f1d048d3201d6bfc52cdc047a0f6654a31fb9eb6ed334d2a2e752c283a
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: IC-RES-002
+      spec_sha256: b85a8f363352c3bd64a25812a60bf4add052cb5b7b422b53f213327d5c4f6e09
+      judge_sha256: 4ed5688f6a292a6bf01833d789345a6dea2f0a5f9238d81056745d0e7edd4502
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: IC-AUG-003
+      spec_sha256: b8a37ae6dfc963b294eacd3a9781398d6d799806e9f6a97f4482397199a9e733
+      judge_sha256: 24a7a1ff34049e79a99080436a357c84a9bb34517f6bc43b6abce0a03d280b21
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: TC-FT-001
+      spec_sha256: 81554b523b832e3fd29495ff1c29eaa6ba761e44eaeb249ae736449d402f494e
+      judge_sha256: 5e85f6d9b6568aa64ed19f5954320aa16dda6b8cc81960c6cd40cc0894bc35e7
+      environment:
+        profile: cpu-sci
+        version: '2026.10'
+    - id: GN-OGB-002
+      spec_sha256: ca5462d56c49045d73151fd7826d591b218ce38affd6d583e6c02c49776deb4f
+      judge_sha256: 312ad40d41eeeb229a3d53ad07a7a5de34bd5c94b4cc997aef39591d2f404d82
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: RS-SEQ-001
+      spec_sha256: ee54b2e225804d7507568fe72c90da1f1747a4580a9352ec9ced99e4822986ed
+      judge_sha256: 5b8f73e0602a2318bc870d22c0221ce143c061b2deba28d268c51690ab056e89
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: RS-GRAPH-002
+      spec_sha256: 6ff21a828d41f9dea3fb989fdb488810175481ef18010f8096224f80d903a4fb
+      judge_sha256: 0e13a75a11870ffa10d007cfb70cbaa5a25cdba31e2b5ebd1643cd996dcb421b
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: PRO-ARL-001
+      spec_sha256: 9d1ec2731d2c7f13041e48fb09e8c601946a9c42671fe8d77cfd4b0f02396747
+      judge_sha256: eaaef9eea78dce553756487e2426663da084f5f7d4c0f8e618b6d5b2b09597d2
+      environment:
+        profile: pro-h100
+        version: '2026.11'
+    - id: PRO-OPD-002
+      spec_sha256: d0d2ec1b86e7fb7c931e81ff517885dcef07c2b448365ba61f50e7538fad51b5
+      judge_sha256: 28487a102811a26c88973b7a02f4e1f0a71fe1f4ff5d500c7c10602d804d73b0
+      environment:
+        profile: pro-h100
+        version: '2026.11'
+    - id: PRO-MOE-003
+      spec_sha256: 6a8b8111fefd8ac70f28958f2a4aaea2d7e24e22cfa70318e0e98fc66c3c8ef0
+      judge_sha256: 906d1393134c03deeebba316bd8037be1ad9fab7a1663950ab4ba68677c001c1
+      environment:
+        profile: pro-h100
+        version: '2026.11'
+    - id: PRO-SPD-004
+      spec_sha256: 2be52e91a9eabdc93a40f5d3d21b2d815a56014f091744d7e7d439e6e3633888
+      judge_sha256: 39ea56f8391cd941199dbd39cc34ad5a552f8af141e55bcc9fab6ec9d5bcda7a
+      environment:
+        profile: pro-h100
+        version: '2026.11'
+    - id: PRO-SRV-005
+      spec_sha256: 919fff4b1e7053f373bcfa832c854d7f38bc6d75bea6262e13fe579111ab7b11
+      judge_sha256: ad473b2cc1ca8520723f86f660beeee787bfcbcff1198134ef605e0b3d576ea0
+      environment:
+        profile: pro-h100
+        version: '2026.11'
+    - id: PRO-SPEC-006
+      spec_sha256: 5df2ce0f60877d23e74ce4163c29662fbc44f3ba3bcb0c9f929f371a5f830d99
+      judge_sha256: ec805d9de9e8b96f1e4c85e62f61e9c6fe92f6ae17e226b13f45b552a1920bdc
+      environment:
+        profile: pro-h100
+        version: '2026.11'
+  calibration@2.1.0:
+    created_at: '2026-11-02'
+    cases:
+    - id: FN-LTSF-005
+      spec_sha256: 9284fe88eec42ac6a782b04f97fa6f3060c87d3c5ba634e96451c565ff2d1197
+      judge_sha256: 9a055ff482bb403eafb1c179b403daba388b924f98cc76c727994131ba1234e4
+      environment:
+        profile: gpu-torch
+        version: '2026.11'
+    - id: DS-PIPE-002
+      spec_sha256: 6ec5f6a957e01cf887f150120797902d8ab728d943849aa46809a1e782528a4d
+      judge_sha256: 21649923d8dc4dd4e140189dfbd3e8391b50fb2c13dcda14e9ce6ea7b87d40b8
+      environment:
+        profile: cpu-sci
+        version: '2026.10'
+    - id: TC-FT-001
+      spec_sha256: 81554b523b832e3fd29495ff1c29eaa6ba761e44eaeb249ae736449d402f494e
+      judge_sha256: 5e85f6d9b6568aa64ed19f5954320aa16dda6b8cc81960c6cd40cc0894bc35e7
+      environment:
+        profile: cpu-sci
+        version: '2026.10'
+  all@2.2.0:
+    created_at: '2026-11-02'
+    cases:
+    - id: A-HYB-001
+      spec_sha256: 35c0a37d1ce4c4c28ef98f4841c342cc471a9d8f11bc0f975be25d8447325cc5
+      judge_sha256: 386425d35487cf1f2877b2d88041b9566673582abb5b027a9df6f691bb3c1225
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: A-LIN-002
+      spec_sha256: 514487f38630707c492fb9400c330ab7c1b7a9f7726f45e4c6e7c2196a3c33ef
+      judge_sha256: 77881f5107cdee2f5b2c932c1dd7105296544e49fbcd3b6e75a5dbf80cef0cac
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: A-MOE-003
+      spec_sha256: 1fdb8cf7fbd4cd1799fbc29d4b7d8202acb9984f76b97c7be666ad65c652f311
+      judge_sha256: ad4370d12381f8f3ad2961da8b80cfd10f1b47f242c8b68197afa5aa673731c1
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: A-KV-004
+      spec_sha256: ea63855411e601c2e152499150b5cda2cc68075e34e3fcf2e002c25a89f67969
+      judge_sha256: 3cde113f1ee35b7d2a7cf77b97155204a71eb43ebcff3c63fa20e55dd4ae0c33
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: A-NORM-005
+      spec_sha256: 0b54856f1f630c39b2801147c5fd189c99885293b8992a90c7634a1be8cc6330
+      judge_sha256: 8feb1827707a580f34359f8eb5fbde1e1e2f2d53771063b19a1215cf5422c4c7
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: A-LCTX-006
+      spec_sha256: 6a856b70a69d80513c57344fdd1fca8f5bafb755368fb22e05dab8ae84b48894
+      judge_sha256: 665b5e87a5244b17f3407c5666fb666e9fbcb76f993f1a6bc4556ef8feb916c0
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: B-OPT-001
+      spec_sha256: e8ade64c6725054c69cad451c839458274148e8b0b91e8045815756076b29225
+      judge_sha256: 02c690f72ed3aa2ca6df5a8ff799acf3530746d9f922fb0af9d793816856aa7b
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: B-OPT-002
+      spec_sha256: ec8f2373befd26a84d586f8528cbc78e75e0da08603915295e94d6c63818654e
+      judge_sha256: 5d574c12b6d67b580ba4b142e430faf6ead122201ea4959fd30f94afab30b031
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: B-OPT-003
+      spec_sha256: c0d9c34d1c2cae4152f75f50e261a778a5d438325f762a3159bd1b63edad5a54
+      judge_sha256: 66efa7deec8d9a604e302652aa40340dc027a0017f2edd5c4b69971003da25c2
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: B-OPT-004
+      spec_sha256: 3b5d222c84ab8930e5ce24f2789ad7be1bfae6ceb14a8302adfb916485d6020f
+      judge_sha256: b22e3a622baa1c57ee59afb4fb835fb2f2c8c263a6c380044e7981d979be0a2a
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: C-SPEC-001
+      spec_sha256: 7d2560ccaf41010162d529e966831de0d958d4c48cad1b6f7023c8a4f04de7c9
+      judge_sha256: 05d06a38a9d703a360fefda647ae91e436a76b4e9d866011e4596d46d30f4681
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: C-KV-002
+      spec_sha256: f6d288eecda46aa4f9f1259659b7e0951c5b10f62ce94073befe035371784798
+      judge_sha256: 24f86c94159780854db5a27d39cad56232feb93f415ba037013e1c0caf076ad3
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: C-QNT-003
+      spec_sha256: 357ca54f0386fae94fff9412ad425ed277d278ecc9d3c1f2c4a1c58ddde0480f
+      judge_sha256: 7df65b05e028ba709f0ef592ae48bbe3213d749b5e8fb7f966f6c0e97531f860
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: C-FA-004
+      spec_sha256: a7300372b4e40390a74db2d3151f10b913ba4b4b209ef6ceae016b63780c931e
+      judge_sha256: fa6478bb119913e945b59594b5b0585c782eb41b54d5561dee4a219fd317214a
+      environment:
+        profile: gpu-torch-cuda-dev
+        version: 1.0.0
+    - id: V-GEN-001
+      spec_sha256: 27f17afbd8fc34257ce22bf850cd236a528c337f85b573f80ced01dad1944c9a
+      judge_sha256: 35d8213e90ac88fa055a318887012fc4ae611593471827d7015fb85100a1ae3b
+      environment:
+        profile: gpu-torch-diffusion
+        version: 1.0.0
+    - id: V-SMP-002
+      spec_sha256: 050c1c0d9487f6ea744fab5b9ffa2490dfda4bc7f047039a9df2c510afdf7d4b
+      judge_sha256: c275fe86df092f89c6d97a2cca4a1f7c1ea56448735b04026a2146d558f234b2
+      environment:
+        profile: gpu-torch-diffusion
+        version: 1.0.0
+    - id: V-DIT-003
+      spec_sha256: 77d4c78bbe8de7376566fb08e96a180f5680365d670775a85e92d235b6a9e13f
+      judge_sha256: 491880bc28fbb046550025c4ad63e1d651c561adc465c0d4370eece0810807b4
+      environment:
+        profile: gpu-torch-diffusion
+        version: 1.0.0
+    - id: V-DST-004
+      spec_sha256: 9ca52c36333378b1984f9e46298681d2ea646ba4680439d615ab1726a0548465
+      judge_sha256: 243bde4e9bcfaedc9d4c15436eb2ac6ca31da9c60de95e3a1aab2a3b8b100c9d
+      environment:
+        profile: gpu-torch-diffusion
+        version: 1.0.0
+    - id: V-3DG-005
+      spec_sha256: 0e0fedc1fd1a6557451c063b9a8c0be158738434b736cc0d95011bad678fc0e0
+      judge_sha256: ad69ae3f5633a0ff74af9cb3b54f5ad1db03f208dfe56e132010b44590ce95d5
+      environment:
+        profile: gpu-torch-cuda-dev
+        version: 1.0.0
+    - id: V-BB-006
+      spec_sha256: e8e0586e07fcadf8123c3899bb7fdb09e3029f299dc49ccb73b90e055949d990
+      judge_sha256: 0994bc4b5a17385a249e79867555fb209815fde0688d4f6d8932846a1ba9faf5
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: E-ACT-001
+      spec_sha256: 23c4b5aab8ec73166eace41215f6b24e6f2293a3739d6598b1f40960d2bbf8b1
+      judge_sha256: 967746ef465cc1da7eac8acf256933323b68d2f704371432bd0ee95456a214fb
+      environment:
+        profile: gpu-torch-sim
+        version: 1.0.0
+    - id: E-RT-002
+      spec_sha256: 8a2ae2751ad2bc14fc06d53bfc0949828914ffe76861fc736f8228b6d5830953
+      judge_sha256: a619c3e06ce95fb876a426622bbfed46d6b4aa6654e6617ba5c98b1e56370523
+      environment:
+        profile: gpu-torch-sim
+        version: 1.0.0
+    - id: E-VLA-003
+      spec_sha256: 8b5c248c549cc5b338f74aa3be4a375fef76f7b75a2875e227a7f15991a51793
+      judge_sha256: c96b323ca5e07851597a8bed5a4cfba63ef5fa0409c0fc8f88eb9a9cbad845c5
+      environment:
+        profile: gpu-torch-sim
+        version: 1.0.0
+    - id: K-KB-001
+      spec_sha256: ff053bf78b263d23f907e5d4e5821fa517f90dd41c8ed850cb3fd1b4f67a6ad7
+      judge_sha256: f68532f4d3f703d8c99f3cf39943219d101a1827521deb7e12e1ed557e448939
+      environment:
+        profile: gpu-torch-cuda-dev
+        version: 1.0.0
+    - id: K-FUS-002
+      spec_sha256: 12eacd1ed9627a61635b74a9057d1c290e157b974391a4110721697389880efd
+      judge_sha256: d99dbdbf757ba59fd1fe230ff1ef5d8f859ad5aeea6cdd355add1bf62e3fcc88
+      environment:
+        profile: gpu-torch-cuda-dev
+        version: 1.0.0
+    - id: K-FA-003
+      spec_sha256: 27c3fc6b51659454d75aed51d434bc1b6cbc94a61de10fe794b7b19b326f2c9e
+      judge_sha256: 7df01d228bff485218511a826472c1a6a70465e8f35cfdbe0807097024928ac5
+      environment:
+        profile: gpu-torch-cuda-dev
+        version: 1.0.0
+    - id: X-PPO-001
+      spec_sha256: c8612ef16acc77dc0084cb289df6e9f248380c9cf0a86f69f34251693685c2a4
+      judge_sha256: 957cc47db43de640470a4706b46f98eca806c39b41e6e065475ef17505f309d6
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: X-GRPO-002
+      spec_sha256: 50028d99d9c0cb43a587bb57ef7b4d948a96d8c547f85f396d0d43858657972a
+      judge_sha256: 27752c1dc189d115f43bd7115a0c17217d9c1a16295830d3855216a0bc99a009
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: X-MUP-003
+      spec_sha256: 27d0ea6a1ebce7b265c0f13bc3a2a0baf0347f741c1d603bee2da27ff20dd5b9
+      judge_sha256: c5694010e64494f1421091c6728af4aa4ec5c99732afaf4e1e9a67564a7f4b89
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: X-LORA-004
+      spec_sha256: 8700f995c6b7641d440b605391de662143cea272d4daca322fc5c540818a7cce
+      judge_sha256: 279bae330987ccc293c116378117ae8aa80c7ad2fb16f72f16d3833444f755d0
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: X-SFT-005
+      spec_sha256: e22be73123a5dd60a00f7210e939ce91142f5b45d7ed312871a6073184825812
+      judge_sha256: 8677577b7122193fb4f737e52e84134cc74aff1f97594ed34bc6bd824a9d4148
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: X-DPO-006
+      spec_sha256: 5b004fe5282efe0c5fcfef59d0f1cc50f2ea146b5709719ab3e3da8bca96f2b9
+      judge_sha256: 9903c305c56bf23733060f7ce3e1622cf086d511ba0d4f525f90ec45a8d1faf5
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: X-DATA-007
+      spec_sha256: 4cab9ecb07c1c2ab4ecd1342e1cc26ae17f949edecf2eab249acfc7c862f0368
+      judge_sha256: 147aa359883d19b4bb4e679baae9b2599a39cac6f02a1b2f1765b55d15b0e6ac
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: X-DISTILL-010
+      spec_sha256: 8b83496c945dd415fdfa2227b5919e73da961eab65d224cae4c91dcfb6168243
+      judge_sha256: 12c96ad0f5651a99de5a49ef1edbfd01a5cfe3b25bad74565312fe405a0dbf92
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: X-ROBUST-009
+      spec_sha256: 99a9abc9ca2d45810d45d558a2870906da8a6c2127c76f7372d2bf11b182b7ad
+      judge_sha256: c717b3ef4a97b8d63f7a0a1fd72c3854b14e82e0f54cb9fb3d5a160683aac60c
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: T-FM-001
+      spec_sha256: 605b50a2797075c03248be4078430b5665e1fd5143a5e760e1f473576ccdd270
+      judge_sha256: c1136f8ab68109ec6e7e668ebf933b1a2b200b73dc725002be1007696bf05830
+      environment:
+        profile: gpu-torch-sim
+        version: 1.0.0
+    - id: T-OPT-002
+      spec_sha256: ae6ea02608ea89d6356f1201aaca4c80e2f7ec03bb4f419c1dbc858350996ec7
+      judge_sha256: 990d79c7f63f018e28d56d806d7f0316320323d9f681a58a12b22c8666e2341c
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: T-SPEC-003
+      spec_sha256: 50c2ed22620b615ec57633b8315a23de28af1412a4719152e1dc70fcfcd7d3fd
+      judge_sha256: ffecdff1025afec16ec575486f87407bf68f2e598219ccde896962b7b7b6dafb
+      environment:
+        profile: gpu-torch-diffusion
+        version: 1.0.0
+    - id: T-MM-004
+      spec_sha256: 60792c0fac62c65ec6fdc5e78eee73bf25d1553a77be884d647695114a865f07
+      judge_sha256: 74e0277cf4f0aa82cf15e9ed7151ff90e996b728bfc52a9b0cfcad5fc603d5b5
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: T-AUDIO-005
+      spec_sha256: 57a24fb69bdb52cd59298dc2be8d991c9591044fa21a8d24f6c744d750456c45
+      judge_sha256: e62588a4c7e982773357a22cc26098515d598eded1f2924608e5b6f236466351
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: U-LOOP-001
+      spec_sha256: fd71827b4bb8f4a6f3c0cc6ba65b3ee8ee3eaff723c4cbf8da1f7e7edfd2a103
+      judge_sha256: c4f2093473c872a97ebfc7da6206bc12f50cc2aa20589acea6cd540f1c70fc58
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: U-LOOP-002
+      spec_sha256: 7d0ebdaf22a78977f22ba860a76fd541714cdbd84db043dbe2e657d2d407e420
+      judge_sha256: 4b7179cc1320b77568ff3ffb7b75895f39e9c5274149c1bf51b505c2849d7993
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: U-LOOP-003
+      spec_sha256: 1c36944b5922ae8e6904f287b053082ffcb4c8ebdc712f0b631df646e5d44c8c
+      judge_sha256: c2f22a45586348c59aa0f7f9f7331ec5ad2d56fe355e9dba122afca3d2f42f56
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: U-DLM-004
+      spec_sha256: da67300df2c9cec1f8a60041515fbf800e660bd2f1139dedae848a009a5c9bf8
+      judge_sha256: 2f0de1432170a7ddd70f8c9f8c213aeb65418484361dcd3680447a7ede3530ff
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: U-DLM-005
+      spec_sha256: d77cbe7729961b42bb5729612805ccdac1d218aac62a8612b45c97fb254588a8
+      judge_sha256: b2ffd85d0d46417c62e133a18cb60559c70e08de5cb7413ef77fd214b36d219f
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: U-BYTE-007
+      spec_sha256: bd41f8164607917f887c823a48c1e3facbd02ee73df73a7ea20f908e952864ff
+      judge_sha256: d884e1c0e54f19f2cb15422083584444402d786286edc9f185f0f6bbb2e75d07
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: U-TTT-008
+      spec_sha256: e69775304523ccd2788eeaa8a06f2610e4bb9ba7b248271d3cc9632748f8a77e
+      judge_sha256: ce3a5501a595322bc7e0f73a68ccf660037a5d366768746cf43cc396af76563b
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: U-KAN-009
+      spec_sha256: 0aee17a31ea7533aebe5276a129a59529c021a20231f1ac18766befb7b32e3b2
+      judge_sha256: 59ab0cc9d2e29d1be44d35627fa92cd3c8d130b18b67ee8bfd1f2dc169a91593
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: FN-QA-004
+      spec_sha256: 63cef9974c766cfe2b641039af63d25f4730006c7855ef7850a678d027bfb3b1
+      judge_sha256: d0eede2672d76817f641792f90c394d488727b7336a3f27e3947bd6d6a2d16fc
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: FN-LTSF-005
+      spec_sha256: cb5b960bdeca0ddf4f5ba3c07a9b43c13dcce106aa22f105f2f7487bb2ce8aca
+      judge_sha256: 9a055ff482bb403eafb1c179b403daba388b924f98cc76c727994131ba1234e4
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: LG-LONG-001
+      spec_sha256: 69d7c5c92b163faef937faee8c63e51adbce8f31b7735e80953dbcc040a56f73
+      judge_sha256: 95b78659844bc9a4b6b9a703539bb3035eba9839c612c0d000e5df1c17ac00d0
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: LG-RSN-003
+      spec_sha256: fae17368a8ea3cf226aa91f99316c9ac75cfcfcd3288019a20a3f2955cf8cb6f
+      judge_sha256: 64d7786f05cab427dc437818f3ca7210ec0d65d38adf04a622f22cac2780ad43
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: PH-NO-001
+      spec_sha256: 6acd59d24b98071d4d13a593f881493e07b71726288fd3b31ecd036d5608d6ca
+      judge_sha256: 253ece3aec3f97d003f99c03f18515fbf02cfa247252d8962ccc4a643b9cd194
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: PH-WELL-002
+      spec_sha256: 8f274a6a30acf706fa39a761eea9c3255d05bc6ef951f5e4d71095015114d5b2
+      judge_sha256: 5b256e12d0f5c553578a164c49b71b29e41017e81d2923952154fa09ba7c18e9
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: PH-MLIP-003
+      spec_sha256: 45c15c9b33f92413fac3240560975e1e61c49360259e0a672b1b990d71ced1e6
+      judge_sha256: be32da787192ee156b34672b7a9ab0a77d05ddab2de738a5dd1a067efdc45bee
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: PH-SYM-005
+      spec_sha256: 87044927d28dc176b2cd180c98d6e0a54b1250924fffbf170999ca826a202166
+      judge_sha256: 56e8641cff2c6a27ac564ab122cd0c0faeeb3af674113dff6e2cb06923a39be7
+      environment:
+        profile: cpu-sci
+        version: 1.0.0
+    - id: BI-PROT-001
+      spec_sha256: ace16a673c24393116dab0995f28b1377ff8a77d8535991ab65345bc929f07fe
+      judge_sha256: c0fdbdcdf1ca0886ec11fc2ea52e6cc1f6de5b71f27aafb6a582ff4718df9158
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: MD-SEG-001
+      spec_sha256: f55f436157842b2f694438890389c266f656098acb7ac14f1ecbc04c31d0eeef
+      judge_sha256: 47f1124fae02a0401d19323259efa7874d1188a5824c4356ad1f3c1bee2bd0ed
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: DS-GBM-001
+      spec_sha256: ad0143ca0f0aeddada907427dff0bdc7722154f7956029072ad688c66e4cd28c
+      judge_sha256: 6b033d15326de63d2f7bc0db9b24cbea9188cfba5ed762a1be48d11e231e349f
+      environment:
+        profile: cpu-sci
+        version: 1.0.0
+    - id: DS-PIPE-002
+      spec_sha256: f92ed5e47edcb252efa645c7dce53cf6b3dd6fcf1137dcef4aa6d1211d2b8eec
+      judge_sha256: 21649923d8dc4dd4e140189dfbd3e8391b50fb2c13dcda14e9ce6ea7b87d40b8
+      environment:
+        profile: cpu-sci
+        version: 1.0.0
+    - id: IC-SPD-001
+      spec_sha256: 3a7b741d305f7a40fccac471d1e4d6acc43908632586f4cbf044b946ff9f9e6a
+      judge_sha256: ff1e56f1d048d3201d6bfc52cdc047a0f6654a31fb9eb6ed334d2a2e752c283a
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: IC-RES-002
+      spec_sha256: cd57f225887edf88f076c44d4f504ecff804eb797ecc33e0e53f534997ca2d2f
+      judge_sha256: 4ed5688f6a292a6bf01833d789345a6dea2f0a5f9238d81056745d0e7edd4502
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: IC-AUG-003
+      spec_sha256: 66e81b882a3e8ab29b385ac7df0a50473b4dc33bf8c808582183fa4d2b878ba3
+      judge_sha256: 24a7a1ff34049e79a99080436a357c84a9bb34517f6bc43b6abce0a03d280b21
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: TC-FT-001
+      spec_sha256: ad83c46bdafac861f95eeb4b749596028fbbb981ed81db4df3361d631609d32f
+      judge_sha256: 5e85f6d9b6568aa64ed19f5954320aa16dda6b8cc81960c6cd40cc0894bc35e7
+      environment:
+        profile: cpu-sci
+        version: 1.0.0
+    - id: GN-OGB-002
+      spec_sha256: f0f1fdad168d3bd2c31677f7f1b70d96cc4f0d6276967732c077a1549b90a11e
+      judge_sha256: 312ad40d41eeeb229a3d53ad07a7a5de34bd5c94b4cc997aef39591d2f404d82
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: RS-SEQ-001
+      spec_sha256: 24d383204a5c242aa52359e386f4f787c54082230c87d38e8299cd64a775b068
+      judge_sha256: 5b8f73e0602a2318bc870d22c0221ce143c061b2deba28d268c51690ab056e89
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: RS-GRAPH-002
+      spec_sha256: b736b5ef8e2c574b0f4a1dd46cd890266b9380368e6ca8fea65838d1c0915c33
+      judge_sha256: 0e13a75a11870ffa10d007cfb70cbaa5a25cdba31e2b5ebd1643cd996dcb421b
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: PRO-ARL-001
+      spec_sha256: 817bcb8396c09552387777e965f90032683a60be038bc1e0969b808b9eae6be0
+      judge_sha256: eaaef9eea78dce553756487e2426663da084f5f7d4c0f8e618b6d5b2b09597d2
+      environment:
+        profile: pro-h100
+        version: 1.0.0
+    - id: PRO-OPD-002
+      spec_sha256: 7d4207a3719759f3d0391e5132e4dcc7af80f986d6802e02506680982304deac
+      judge_sha256: 28487a102811a26c88973b7a02f4e1f0a71fe1f4ff5d500c7c10602d804d73b0
+      environment:
+        profile: pro-h100
+        version: 1.0.0
+    - id: PRO-MOE-003
+      spec_sha256: 7756a9aa17d9b871647b007b52dbee1ca1fbb258405c8c028e692f5e7e4763d5
+      judge_sha256: 906d1393134c03deeebba316bd8037be1ad9fab7a1663950ab4ba68677c001c1
+      environment:
+        profile: pro-h100
+        version: 1.0.0
+    - id: PRO-SPD-004
+      spec_sha256: 67527694e174d40d2d0bd1e09b0530fee7e21730a8a75c0fbad0d3d40cccbee9
+      judge_sha256: 39ea56f8391cd941199dbd39cc34ad5a552f8af141e55bcc9fab6ec9d5bcda7a
+      environment:
+        profile: pro-h100
+        version: 1.0.0
+    - id: PRO-SRV-005
+      spec_sha256: 4e2292cf90daee2366ac56f0fb4067d70c70b84d663ea5f0682b729ceafd3f93
+      judge_sha256: ad473b2cc1ca8520723f86f660beeee787bfcbcff1198134ef605e0b3d576ea0
+      environment:
+        profile: pro-h100
+        version: 1.0.0
+    - id: PRO-SPEC-006
+      spec_sha256: fc9410b231e5b06319aff786f0a287d6d27be1deb33ea7148687eb8dd1884d4f
+      judge_sha256: ec805d9de9e8b96f1e4c85e62f61e9c6fe92f6ae17e226b13f45b552a1920bdc
+      environment:
+        profile: pro-h100
+        version: 1.0.0
+  calibration@2.2.0:
+    created_at: '2026-11-02'
+    cases:
+    - id: FN-LTSF-005
+      spec_sha256: cb5b960bdeca0ddf4f5ba3c07a9b43c13dcce106aa22f105f2f7487bb2ce8aca
+      judge_sha256: 9a055ff482bb403eafb1c179b403daba388b924f98cc76c727994131ba1234e4
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: DS-PIPE-002
+      spec_sha256: f92ed5e47edcb252efa645c7dce53cf6b3dd6fcf1137dcef4aa6d1211d2b8eec
+      judge_sha256: 21649923d8dc4dd4e140189dfbd3e8391b50fb2c13dcda14e9ce6ea7b87d40b8
+      environment:
+        profile: cpu-sci
+        version: 1.0.0
+    - id: TC-FT-001
+      spec_sha256: ad83c46bdafac861f95eeb4b749596028fbbb981ed81db4df3361d631609d32f
+      judge_sha256: 5e85f6d9b6568aa64ed19f5954320aa16dda6b8cc81960c6cd40cc0894bc35e7
+      environment:
+        profile: cpu-sci
+        version: 1.0.0
+  all@2.2.1:
+    created_at: '2026-11-02'
+    cases:
+    - id: A-HYB-001
+      spec_sha256: 35c0a37d1ce4c4c28ef98f4841c342cc471a9d8f11bc0f975be25d8447325cc5
+      judge_sha256: 386425d35487cf1f2877b2d88041b9566673582abb5b027a9df6f691bb3c1225
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: A-LIN-002
+      spec_sha256: 514487f38630707c492fb9400c330ab7c1b7a9f7726f45e4c6e7c2196a3c33ef
+      judge_sha256: 77881f5107cdee2f5b2c932c1dd7105296544e49fbcd3b6e75a5dbf80cef0cac
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: A-MOE-003
+      spec_sha256: 1fdb8cf7fbd4cd1799fbc29d4b7d8202acb9984f76b97c7be666ad65c652f311
+      judge_sha256: ad4370d12381f8f3ad2961da8b80cfd10f1b47f242c8b68197afa5aa673731c1
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: A-KV-004
+      spec_sha256: ea63855411e601c2e152499150b5cda2cc68075e34e3fcf2e002c25a89f67969
+      judge_sha256: 3cde113f1ee35b7d2a7cf77b97155204a71eb43ebcff3c63fa20e55dd4ae0c33
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: A-NORM-005
+      spec_sha256: 0b54856f1f630c39b2801147c5fd189c99885293b8992a90c7634a1be8cc6330
+      judge_sha256: 8feb1827707a580f34359f8eb5fbde1e1e2f2d53771063b19a1215cf5422c4c7
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: A-LCTX-006
+      spec_sha256: 6a856b70a69d80513c57344fdd1fca8f5bafb755368fb22e05dab8ae84b48894
+      judge_sha256: 665b5e87a5244b17f3407c5666fb666e9fbcb76f993f1a6bc4556ef8feb916c0
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: B-OPT-001
+      spec_sha256: e8ade64c6725054c69cad451c839458274148e8b0b91e8045815756076b29225
+      judge_sha256: 02c690f72ed3aa2ca6df5a8ff799acf3530746d9f922fb0af9d793816856aa7b
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: B-OPT-002
+      spec_sha256: ec8f2373befd26a84d586f8528cbc78e75e0da08603915295e94d6c63818654e
+      judge_sha256: 5d574c12b6d67b580ba4b142e430faf6ead122201ea4959fd30f94afab30b031
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: B-OPT-003
+      spec_sha256: c0d9c34d1c2cae4152f75f50e261a778a5d438325f762a3159bd1b63edad5a54
+      judge_sha256: 66efa7deec8d9a604e302652aa40340dc027a0017f2edd5c4b69971003da25c2
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: B-OPT-004
+      spec_sha256: 3b5d222c84ab8930e5ce24f2789ad7be1bfae6ceb14a8302adfb916485d6020f
+      judge_sha256: 32ec222fb11b61a353b073c1fffbb1dce1d5cf8bcfecda35e6248fa44a77cac0
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: C-SPEC-001
+      spec_sha256: 7d2560ccaf41010162d529e966831de0d958d4c48cad1b6f7023c8a4f04de7c9
+      judge_sha256: 05d06a38a9d703a360fefda647ae91e436a76b4e9d866011e4596d46d30f4681
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: C-KV-002
+      spec_sha256: f6d288eecda46aa4f9f1259659b7e0951c5b10f62ce94073befe035371784798
+      judge_sha256: 24f86c94159780854db5a27d39cad56232feb93f415ba037013e1c0caf076ad3
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: C-QNT-003
+      spec_sha256: 357ca54f0386fae94fff9412ad425ed277d278ecc9d3c1f2c4a1c58ddde0480f
+      judge_sha256: 7df65b05e028ba709f0ef592ae48bbe3213d749b5e8fb7f966f6c0e97531f860
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: C-FA-004
+      spec_sha256: a7300372b4e40390a74db2d3151f10b913ba4b4b209ef6ceae016b63780c931e
+      judge_sha256: fa6478bb119913e945b59594b5b0585c782eb41b54d5561dee4a219fd317214a
+      environment:
+        profile: gpu-torch-cuda-dev
+        version: 1.0.0
+    - id: V-GEN-001
+      spec_sha256: 27f17afbd8fc34257ce22bf850cd236a528c337f85b573f80ced01dad1944c9a
+      judge_sha256: 35d8213e90ac88fa055a318887012fc4ae611593471827d7015fb85100a1ae3b
+      environment:
+        profile: gpu-torch-diffusion
+        version: 1.0.0
+    - id: V-SMP-002
+      spec_sha256: 050c1c0d9487f6ea744fab5b9ffa2490dfda4bc7f047039a9df2c510afdf7d4b
+      judge_sha256: c275fe86df092f89c6d97a2cca4a1f7c1ea56448735b04026a2146d558f234b2
+      environment:
+        profile: gpu-torch-diffusion
+        version: 1.0.0
+    - id: V-DIT-003
+      spec_sha256: 77d4c78bbe8de7376566fb08e96a180f5680365d670775a85e92d235b6a9e13f
+      judge_sha256: 491880bc28fbb046550025c4ad63e1d651c561adc465c0d4370eece0810807b4
+      environment:
+        profile: gpu-torch-diffusion
+        version: 1.0.0
+    - id: V-DST-004
+      spec_sha256: 9ca52c36333378b1984f9e46298681d2ea646ba4680439d615ab1726a0548465
+      judge_sha256: 243bde4e9bcfaedc9d4c15436eb2ac6ca31da9c60de95e3a1aab2a3b8b100c9d
+      environment:
+        profile: gpu-torch-diffusion
+        version: 1.0.0
+    - id: V-3DG-005
+      spec_sha256: 0e0fedc1fd1a6557451c063b9a8c0be158738434b736cc0d95011bad678fc0e0
+      judge_sha256: ad69ae3f5633a0ff74af9cb3b54f5ad1db03f208dfe56e132010b44590ce95d5
+      environment:
+        profile: gpu-torch-cuda-dev
+        version: 1.0.0
+    - id: V-BB-006
+      spec_sha256: e8e0586e07fcadf8123c3899bb7fdb09e3029f299dc49ccb73b90e055949d990
+      judge_sha256: 0994bc4b5a17385a249e79867555fb209815fde0688d4f6d8932846a1ba9faf5
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: E-ACT-001
+      spec_sha256: 23c4b5aab8ec73166eace41215f6b24e6f2293a3739d6598b1f40960d2bbf8b1
+      judge_sha256: 967746ef465cc1da7eac8acf256933323b68d2f704371432bd0ee95456a214fb
+      environment:
+        profile: gpu-torch-sim
+        version: 1.0.0
+    - id: E-RT-002
+      spec_sha256: 8a2ae2751ad2bc14fc06d53bfc0949828914ffe76861fc736f8228b6d5830953
+      judge_sha256: a619c3e06ce95fb876a426622bbfed46d6b4aa6654e6617ba5c98b1e56370523
+      environment:
+        profile: gpu-torch-sim
+        version: 1.0.0
+    - id: E-VLA-003
+      spec_sha256: 8b5c248c549cc5b338f74aa3be4a375fef76f7b75a2875e227a7f15991a51793
+      judge_sha256: c96b323ca5e07851597a8bed5a4cfba63ef5fa0409c0fc8f88eb9a9cbad845c5
+      environment:
+        profile: gpu-torch-sim
+        version: 1.0.0
+    - id: K-KB-001
+      spec_sha256: ff053bf78b263d23f907e5d4e5821fa517f90dd41c8ed850cb3fd1b4f67a6ad7
+      judge_sha256: f68532f4d3f703d8c99f3cf39943219d101a1827521deb7e12e1ed557e448939
+      environment:
+        profile: gpu-torch-cuda-dev
+        version: 1.0.0
+    - id: K-FUS-002
+      spec_sha256: 12eacd1ed9627a61635b74a9057d1c290e157b974391a4110721697389880efd
+      judge_sha256: d99dbdbf757ba59fd1fe230ff1ef5d8f859ad5aeea6cdd355add1bf62e3fcc88
+      environment:
+        profile: gpu-torch-cuda-dev
+        version: 1.0.0
+    - id: K-FA-003
+      spec_sha256: 27c3fc6b51659454d75aed51d434bc1b6cbc94a61de10fe794b7b19b326f2c9e
+      judge_sha256: 7df01d228bff485218511a826472c1a6a70465e8f35cfdbe0807097024928ac5
+      environment:
+        profile: gpu-torch-cuda-dev
+        version: 1.0.0
+    - id: X-PPO-001
+      spec_sha256: c8612ef16acc77dc0084cb289df6e9f248380c9cf0a86f69f34251693685c2a4
+      judge_sha256: 957cc47db43de640470a4706b46f98eca806c39b41e6e065475ef17505f309d6
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: X-GRPO-002
+      spec_sha256: 50028d99d9c0cb43a587bb57ef7b4d948a96d8c547f85f396d0d43858657972a
+      judge_sha256: 27752c1dc189d115f43bd7115a0c17217d9c1a16295830d3855216a0bc99a009
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: X-MUP-003
+      spec_sha256: 27d0ea6a1ebce7b265c0f13bc3a2a0baf0347f741c1d603bee2da27ff20dd5b9
+      judge_sha256: c5694010e64494f1421091c6728af4aa4ec5c99732afaf4e1e9a67564a7f4b89
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: X-LORA-004
+      spec_sha256: 8700f995c6b7641d440b605391de662143cea272d4daca322fc5c540818a7cce
+      judge_sha256: 279bae330987ccc293c116378117ae8aa80c7ad2fb16f72f16d3833444f755d0
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: X-SFT-005
+      spec_sha256: e22be73123a5dd60a00f7210e939ce91142f5b45d7ed312871a6073184825812
+      judge_sha256: 8677577b7122193fb4f737e52e84134cc74aff1f97594ed34bc6bd824a9d4148
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: X-DPO-006
+      spec_sha256: 5b004fe5282efe0c5fcfef59d0f1cc50f2ea146b5709719ab3e3da8bca96f2b9
+      judge_sha256: 9903c305c56bf23733060f7ce3e1622cf086d511ba0d4f525f90ec45a8d1faf5
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: X-DATA-007
+      spec_sha256: 4cab9ecb07c1c2ab4ecd1342e1cc26ae17f949edecf2eab249acfc7c862f0368
+      judge_sha256: 147aa359883d19b4bb4e679baae9b2599a39cac6f02a1b2f1765b55d15b0e6ac
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: X-DISTILL-010
+      spec_sha256: 8b83496c945dd415fdfa2227b5919e73da961eab65d224cae4c91dcfb6168243
+      judge_sha256: 12c96ad0f5651a99de5a49ef1edbfd01a5cfe3b25bad74565312fe405a0dbf92
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: X-ROBUST-009
+      spec_sha256: 99a9abc9ca2d45810d45d558a2870906da8a6c2127c76f7372d2bf11b182b7ad
+      judge_sha256: c717b3ef4a97b8d63f7a0a1fd72c3854b14e82e0f54cb9fb3d5a160683aac60c
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: T-FM-001
+      spec_sha256: 605b50a2797075c03248be4078430b5665e1fd5143a5e760e1f473576ccdd270
+      judge_sha256: c1136f8ab68109ec6e7e668ebf933b1a2b200b73dc725002be1007696bf05830
+      environment:
+        profile: gpu-torch-sim
+        version: 1.0.0
+    - id: T-OPT-002
+      spec_sha256: ae6ea02608ea89d6356f1201aaca4c80e2f7ec03bb4f419c1dbc858350996ec7
+      judge_sha256: 990d79c7f63f018e28d56d806d7f0316320323d9f681a58a12b22c8666e2341c
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: T-SPEC-003
+      spec_sha256: 50c2ed22620b615ec57633b8315a23de28af1412a4719152e1dc70fcfcd7d3fd
+      judge_sha256: ffecdff1025afec16ec575486f87407bf68f2e598219ccde896962b7b7b6dafb
+      environment:
+        profile: gpu-torch-diffusion
+        version: 1.0.0
+    - id: T-MM-004
+      spec_sha256: 60792c0fac62c65ec6fdc5e78eee73bf25d1553a77be884d647695114a865f07
+      judge_sha256: 74e0277cf4f0aa82cf15e9ed7151ff90e996b728bfc52a9b0cfcad5fc603d5b5
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: T-AUDIO-005
+      spec_sha256: 57a24fb69bdb52cd59298dc2be8d991c9591044fa21a8d24f6c744d750456c45
+      judge_sha256: e62588a4c7e982773357a22cc26098515d598eded1f2924608e5b6f236466351
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: U-LOOP-001
+      spec_sha256: fd71827b4bb8f4a6f3c0cc6ba65b3ee8ee3eaff723c4cbf8da1f7e7edfd2a103
+      judge_sha256: c4f2093473c872a97ebfc7da6206bc12f50cc2aa20589acea6cd540f1c70fc58
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: U-LOOP-002
+      spec_sha256: 7d0ebdaf22a78977f22ba860a76fd541714cdbd84db043dbe2e657d2d407e420
+      judge_sha256: 4b7179cc1320b77568ff3ffb7b75895f39e9c5274149c1bf51b505c2849d7993
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: U-LOOP-003
+      spec_sha256: 1c36944b5922ae8e6904f287b053082ffcb4c8ebdc712f0b631df646e5d44c8c
+      judge_sha256: c2f22a45586348c59aa0f7f9f7331ec5ad2d56fe355e9dba122afca3d2f42f56
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: U-DLM-004
+      spec_sha256: da67300df2c9cec1f8a60041515fbf800e660bd2f1139dedae848a009a5c9bf8
+      judge_sha256: 2f0de1432170a7ddd70f8c9f8c213aeb65418484361dcd3680447a7ede3530ff
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: U-DLM-005
+      spec_sha256: d77cbe7729961b42bb5729612805ccdac1d218aac62a8612b45c97fb254588a8
+      judge_sha256: b2ffd85d0d46417c62e133a18cb60559c70e08de5cb7413ef77fd214b36d219f
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: U-BYTE-007
+      spec_sha256: bd41f8164607917f887c823a48c1e3facbd02ee73df73a7ea20f908e952864ff
+      judge_sha256: d884e1c0e54f19f2cb15422083584444402d786286edc9f185f0f6bbb2e75d07
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: U-TTT-008
+      spec_sha256: e69775304523ccd2788eeaa8a06f2610e4bb9ba7b248271d3cc9632748f8a77e
+      judge_sha256: ce3a5501a595322bc7e0f73a68ccf660037a5d366768746cf43cc396af76563b
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: U-KAN-009
+      spec_sha256: 0aee17a31ea7533aebe5276a129a59529c021a20231f1ac18766befb7b32e3b2
+      judge_sha256: 59ab0cc9d2e29d1be44d35627fa92cd3c8d130b18b67ee8bfd1f2dc169a91593
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: FN-QA-004
+      spec_sha256: 63cef9974c766cfe2b641039af63d25f4730006c7855ef7850a678d027bfb3b1
+      judge_sha256: d0eede2672d76817f641792f90c394d488727b7336a3f27e3947bd6d6a2d16fc
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: FN-LTSF-005
+      spec_sha256: cb5b960bdeca0ddf4f5ba3c07a9b43c13dcce106aa22f105f2f7487bb2ce8aca
+      judge_sha256: 9a055ff482bb403eafb1c179b403daba388b924f98cc76c727994131ba1234e4
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: LG-LONG-001
+      spec_sha256: 69d7c5c92b163faef937faee8c63e51adbce8f31b7735e80953dbcc040a56f73
+      judge_sha256: 95b78659844bc9a4b6b9a703539bb3035eba9839c612c0d000e5df1c17ac00d0
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: LG-RSN-003
+      spec_sha256: fae17368a8ea3cf226aa91f99316c9ac75cfcfcd3288019a20a3f2955cf8cb6f
+      judge_sha256: 64d7786f05cab427dc437818f3ca7210ec0d65d38adf04a622f22cac2780ad43
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: PH-NO-001
+      spec_sha256: 6acd59d24b98071d4d13a593f881493e07b71726288fd3b31ecd036d5608d6ca
+      judge_sha256: 253ece3aec3f97d003f99c03f18515fbf02cfa247252d8962ccc4a643b9cd194
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: PH-WELL-002
+      spec_sha256: 8f274a6a30acf706fa39a761eea9c3255d05bc6ef951f5e4d71095015114d5b2
+      judge_sha256: 5b256e12d0f5c553578a164c49b71b29e41017e81d2923952154fa09ba7c18e9
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: PH-MLIP-003
+      spec_sha256: 45c15c9b33f92413fac3240560975e1e61c49360259e0a672b1b990d71ced1e6
+      judge_sha256: be32da787192ee156b34672b7a9ab0a77d05ddab2de738a5dd1a067efdc45bee
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: PH-SYM-005
+      spec_sha256: 87044927d28dc176b2cd180c98d6e0a54b1250924fffbf170999ca826a202166
+      judge_sha256: 56e8641cff2c6a27ac564ab122cd0c0faeeb3af674113dff6e2cb06923a39be7
+      environment:
+        profile: cpu-sci
+        version: 1.0.0
+    - id: BI-PROT-001
+      spec_sha256: ace16a673c24393116dab0995f28b1377ff8a77d8535991ab65345bc929f07fe
+      judge_sha256: c0fdbdcdf1ca0886ec11fc2ea52e6cc1f6de5b71f27aafb6a582ff4718df9158
+      environment:
+        profile: gpu-torch-hf
+        version: 1.0.0
+    - id: MD-SEG-001
+      spec_sha256: f55f436157842b2f694438890389c266f656098acb7ac14f1ecbc04c31d0eeef
+      judge_sha256: 47f1124fae02a0401d19323259efa7874d1188a5824c4356ad1f3c1bee2bd0ed
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: DS-GBM-001
+      spec_sha256: ad0143ca0f0aeddada907427dff0bdc7722154f7956029072ad688c66e4cd28c
+      judge_sha256: 6b033d15326de63d2f7bc0db9b24cbea9188cfba5ed762a1be48d11e231e349f
+      environment:
+        profile: cpu-sci
+        version: 1.0.0
+    - id: DS-PIPE-002
+      spec_sha256: f92ed5e47edcb252efa645c7dce53cf6b3dd6fcf1137dcef4aa6d1211d2b8eec
+      judge_sha256: 21649923d8dc4dd4e140189dfbd3e8391b50fb2c13dcda14e9ce6ea7b87d40b8
+      environment:
+        profile: cpu-sci
+        version: 1.0.0
+    - id: IC-SPD-001
+      spec_sha256: 3a7b741d305f7a40fccac471d1e4d6acc43908632586f4cbf044b946ff9f9e6a
+      judge_sha256: ff1e56f1d048d3201d6bfc52cdc047a0f6654a31fb9eb6ed334d2a2e752c283a
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: IC-RES-002
+      spec_sha256: cd57f225887edf88f076c44d4f504ecff804eb797ecc33e0e53f534997ca2d2f
+      judge_sha256: 4ed5688f6a292a6bf01833d789345a6dea2f0a5f9238d81056745d0e7edd4502
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: IC-AUG-003
+      spec_sha256: 66e81b882a3e8ab29b385ac7df0a50473b4dc33bf8c808582183fa4d2b878ba3
+      judge_sha256: 24a7a1ff34049e79a99080436a357c84a9bb34517f6bc43b6abce0a03d280b21
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: TC-FT-001
+      spec_sha256: ad83c46bdafac861f95eeb4b749596028fbbb981ed81db4df3361d631609d32f
+      judge_sha256: 5e85f6d9b6568aa64ed19f5954320aa16dda6b8cc81960c6cd40cc0894bc35e7
+      environment:
+        profile: cpu-sci
+        version: 1.0.0
+    - id: GN-OGB-002
+      spec_sha256: f0f1fdad168d3bd2c31677f7f1b70d96cc4f0d6276967732c077a1549b90a11e
+      judge_sha256: 312ad40d41eeeb229a3d53ad07a7a5de34bd5c94b4cc997aef39591d2f404d82
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: RS-SEQ-001
+      spec_sha256: 24d383204a5c242aa52359e386f4f787c54082230c87d38e8299cd64a775b068
+      judge_sha256: 5b8f73e0602a2318bc870d22c0221ce143c061b2deba28d268c51690ab056e89
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: RS-GRAPH-002
+      spec_sha256: b736b5ef8e2c574b0f4a1dd46cd890266b9380368e6ca8fea65838d1c0915c33
+      judge_sha256: 0e13a75a11870ffa10d007cfb70cbaa5a25cdba31e2b5ebd1643cd996dcb421b
+      environment:
+        profile: gpu-torch
+        version: 1.0.0
+    - id: PRO-ARL-001
+      spec_sha256: 817bcb8396c09552387777e965f90032683a60be038bc1e0969b808b9eae6be0
+      judge_sha256: eaaef9eea78dce553756487e2426663da084f5f7d4c0f8e618b6d5b2b09597d2
+      environment:
+        profile: pro-h100
+        version: 1.0.0
+    - id: PRO-OPD-002
+      spec_sha256: 7d4207a3719759f3d0391e5132e4dcc7af80f986d6802e02506680982304deac
+      judge_sha256: 28487a102811a26c88973b7a02f4e1f0a71fe1f4ff5d500c7c10602d804d73b0
+      environment:
+        profile: pro-h100
+        version: 1.0.0
+    - id: PRO-MOE-003
+      spec_sha256: 7756a9aa17d9b871647b007b52dbee1ca1fbb258405c8c028e692f5e7e4763d5
+      judge_sha256: 906d1393134c03deeebba316bd8037be1ad9fab7a1663950ab4ba68677c001c1
+      environment:
+        profile: pro-h100
+        version: 1.0.0
+    - id: PRO-SPD-004
+      spec_sha256: 67527694e174d40d2d0bd1e09b0530fee7e21730a8a75c0fbad0d3d40cccbee9
+      judge_sha256: 39ea56f8391cd941199dbd39cc34ad5a552f8af141e55bcc9fab6ec9d5bcda7a
+      environment:
+        profile: pro-h100
+        version: 1.0.0
+    - id: PRO-SRV-005
+      spec_sha256: 4e2292cf90daee2366ac56f0fb4067d70c70b84d663ea5f0682b729ceafd3f93
+      judge_sha256: ad473b2cc1ca8520723f86f660beeee787bfcbcff1198134ef605e0b3d576ea0
+      environment:
+        profile: pro-h100
+        version: 1.0.0
+    - id: PRO-SPEC-006
+      spec_sha256: fc9410b231e5b06319aff786f0a287d6d27be1deb33ea7148687eb8dd1884d4f
+      judge_sha256: ec805d9de9e8b96f1e4c85e62f61e9c6fe92f6ae17e226b13f45b552a1920bdc
+      environment:
+        profile: pro-h100
+        version: 1.0.0

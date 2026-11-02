@@ -1,5 +1,9 @@
 schema: abench.env_profiles/v1
 status: pinned-build-inputs
+# Command-line tools of every root profile (children inherit them). The original runner ran agent and judge on the
+# host, which has these; images otherwise carry only the Python environment. Debian bookworm / Ubuntu packages.
+system_packages: [procps, psmisc, lsof, strace, curl, wget, netcat-openbsd, iputils-ping, iproute2, git, less, vim,
+                  nano, patch, unzip, zip, xz-utils, bzip2, file, jq, bc, tree, time, rsync, tmux, poppler-utils]
 profiles:
   cpu-sci:
     python: 3.11.13
@@ -11,7 +15,7 @@ profiles:
       joblib: 1.5.1
       threadpoolctl: 3.6.0
     hardware: 8 CPU cores, no GPU
-    version: '2026.10'
+    version: 1.0.0
     base: python:3.11.13-slim-bookworm
   gpu-torch:
     python: 3.11.13
@@ -25,7 +29,8 @@ profiles:
       safetensors: 0.6.2
     hardware: one RTX 4090-class 24 GB GPU; driver and CUDA runtime recorded in the
       lock
-    version: '2026.10'
+    system_packages: [gcc, g++]   # torch.compile (Inductor) and Triton compile launchers and CPU kernels at run time
+    version: 1.0.0
     base: python:3.11.13-slim-bookworm
   gpu-torch-hf:
     extends: gpu-torch
@@ -37,7 +42,7 @@ profiles:
     env:
       HF_HUB_OFFLINE: '1'
       TRANSFORMERS_OFFLINE: '1'
-    version: '2026.10'
+    version: 1.0.0
     python: 3.11.13
   gpu-torch-diffusion:
     extends: gpu-torch
@@ -49,21 +54,21 @@ profiles:
       HF_HUB_OFFLINE: '1'
     note: pytorch-fid's Inception weights (pt_inception-2015-12-05-6726825d.pth) are
       frozen into the models dir, not downloaded
-    version: '2026.10'
+    version: 1.0.0
     python: 3.11.13
   gpu-torch-sim:
     extends: gpu-torch
     packages:
       gymnasium: 0.29.1
       gym-pusht: 0.1.5
-    version: '2026.10'
+    version: 1.0.0
     python: 3.11.13
   gpu-torch-cuda-dev:
     extends: gpu-torch
     packages:
       ninja: 1.11.1.4
     system: CUDA toolkit (nvcc) matching torch.version.cuda, for torch.utils.cpp_extension.load_inline
-    version: '2026.10'
+    version: 1.0.0
     python: 3.11.13
     base: nvidia/cuda:12.8.1-devel-ubuntu24.04
   pro-h100:
@@ -78,5 +83,6 @@ profiles:
       safetensors: 0.6.2
     hardware: one node, 4 x H100 80GB SXM with NVLink; NCCL version recorded in the
       lock
-    version: '2026.10'
+    system_packages: [gcc, g++]   # torch.compile (Inductor) and Triton compile launchers and CPU kernels at run time
+    version: 1.0.0
     base: python:3.11.13-slim-bookworm

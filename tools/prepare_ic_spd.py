@@ -129,37 +129,49 @@ def main() -> int:
     else:
         raise SystemExit("pass --raw-dir (real data) or --synthetic N (plumbing test)")
     dev = dev_split(ytr, DEV_PER_CLASS)
-    pub_b = npz_bytes(x=xtr, y=ytr, dev_idx=dev)
-    xh = np.concatenate([xte, x101])
-    hid_plain = npz_bytes(x=xh, y=np.concatenate([yte, y101]),
-                          src=np.concatenate([np.zeros(len(yte), np.int64), np.ones(len(y101), np.int64)]))
-    pub = ROOT / "sandbox/data/IC-SPD-001/train.npz"
-    hid = ROOT / "sandbox/hidden/IC-SPD-001/test.npz.enc"
-    pub.parent.mkdir(parents=True, exist_ok=True)
-    hid.parent.mkdir(parents=True, exist_ok=True)
-    pub.write_bytes(pub_b)
-    hid.write_bytes(hidden_store.encrypt_bytes(hidden_store.read_key(Path(a.key_file)), hid_plain))
-    hid.chmod(0o600)
-
-    oj_path = ROOT / "cases/IC-SPD-001/case/oj.yaml"
-    oj = yaml.safe_load(oj_path.read_text(encoding="utf-8"))
-    oj["data"]["public"][0].update(path=str(pub.relative_to(ROOT)), sha256=hashlib.sha256(pub_b).hexdigest(),
-                                   rows=int(len(ytr)), dev_rows=int(len(dev)))
-    oj["data"]["hidden"].update(path=str(hid.relative_to(ROOT)), sha256_plain=hashlib.sha256(hid_plain).hexdigest(),
-                                rows=int(len(xh)), rows_by_src={"cifar10": int(len(yte)), "cifar10_1": int(len(y101))})
-    oj["data"]["sources_sha256"] = sources
-    if a.synthetic:
-        oj["data"]["synthetic"] = True
-    else:
-        oj["data"].pop("synthetic", None)
-    oj_path.write_text(yaml.safe_dump(oj, allow_unicode=True, sort_keys=False), encoding="utf-8")
-    # Keep frozen data separate from the stable authored contract and suite identity.
-    lock = {"case_id": "IC-SPD-001", "activation": oj["judge"].get("activation"),
-            "synthetic": bool(a.synthetic), **{key: oj["data"][key] for key in
-            ("public_dir", "public", "hidden", "sources_sha256")}}
-    (oj_path.parent / "data_lock.yaml").write_text(yaml.safe_dump(lock, sort_keys=False), encoding="utf-8")
-    import build_standard_cases
-    build_standard_cases.build_handcrafted(ROOT / "spec/handcrafted/IC-SPD-001.yaml", check=False)
+    from prepare.artifacts import Publication, atomic_text, verify_frozen
+    from file_hashes import sha256_file
+    import tempfile
+    case = "IC-SPD-001"
+    oj_path = ROOT / "cases" / case / "case/oj.yaml"
+    with Publication(ROOT, case) as publication:
+        pub = publication.staging / "sandbox/data/IC-SPD-001/train.npz"
+        hid = publication.staging / "sandbox/hidden/IC-SPD-001/test.npz.enc"
+        pub.parent.mkdir(parents=True)
+        hid.parent.mkdir(parents=True)
+        with pub.open("wb") as output:
+            np.savez(output, x=xtr, y=ytr, dev_idx=dev)
+        xh = np.concatenate([xte, x101])
+        with tempfile.TemporaryFile() as plain, os.fdopen(os.open(hid, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as output:
+            np.savez(plain, x=xh, y=np.concatenate([yte, y101]),
+                     src=np.concatenate([np.zeros(len(yte), np.int64), np.ones(len(y101), np.int64)]))
+            plain.seek(0)
+            identity = hidden_store.encrypt_stream(hidden_store.read_key(Path(a.key_file)), plain, output)
+        oj = yaml.safe_load(oj_path.read_text(encoding="utf-8"))
+        oj["data"]["public"][0].update(path=str(pub.relative_to(publication.staging)), sha256=sha256_file(pub),
+                                       rows=int(len(ytr)), dev_rows=int(len(dev)))
+        oj["data"]["hidden"].update(path=str(hid.relative_to(publication.staging)), sha256_plain=identity["sha256_plain"],
+                                    rows=int(len(xh)), rows_by_src={"cifar10": int(len(yte)), "cifar10_1": int(len(y101))})
+        oj["data"]["sources_sha256"] = sources
+        if a.synthetic:
+            oj["data"]["synthetic"] = True
+        else:
+            oj["data"].pop("synthetic", None)
+        lock = {"case_id": case, "activation": oj["judge"].get("activation"),
+                "synthetic": bool(a.synthetic), **{key: oj["data"][key] for key in
+                ("public_dir", "public", "hidden", "sources_sha256")}}
+        verify_frozen(publication.staging, lock, Path(a.key_file))
+        lock_path = oj_path.parent / "data_lock.yaml"
+        staged_lock = publication.staging / "data_lock.yaml"
+        atomic_text(staged_lock, yaml.safe_dump(lock, sort_keys=False), 0o644)
+        def generate():
+            import build_standard_cases
+            build_standard_cases.build_handcrafted(ROOT / "spec/handcrafted/IC-SPD-001.yaml", check=False)
+        publication.publish([(lock_path, staged_lock), (oj_path, None),
+                             (ROOT / "sandbox/data" / case, pub.parent),
+                             (ROOT / "sandbox/hidden" / case, hid.parent)],
+                            before_commit=generate, last=(lock_path,))
+        pub, hid = ROOT / pub.relative_to(publication.staging), ROOT / hid.relative_to(publication.staging)
     print(f"public {pub} {len(ytr)} rows (dev {len(dev)}); hidden {hid} {len(xh)} rows (encrypted)"
           + ("  [SYNTHETIC]" if a.synthetic else ""))
     return 0

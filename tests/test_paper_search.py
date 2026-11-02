@@ -104,12 +104,13 @@ class PaperSearch(unittest.TestCase):
                             "--result-root", str(res), "--run-id", "papers-test", "--timeout-seconds", "60"],
                            capture_output=True, text=True, env={k: v for k, v in os.environ.items()
                                                                 if not k.startswith("ABENCH_")})
-        rec = json.loads((res / "A-LIN-002" / "papers-test" / "agent_run.json").read_text())
+        run = res / "command" / "llm_opt" / "A-LIN-002" / "papers-test"      # runs/<harness>[-<model>]/<category>/<case>/<run>
+        rec = json.loads((run / "agent_run.json").read_text())
         self.assertEqual(rec["retrieval_log"]["entries"], 2, r.stderr[-2000:])
         self.assertTrue(rec["retrieval_log"]["chain_ok"])
         self.assertEqual(rec["paper_index"]["cutoff"], "2026-07-01")
         self.assertIn("tools/abench_papers.py", rec["agent_view"]["files"])
-        log = (res / "A-LIN-002" / "papers-test" / "retrieval_log.jsonl").read_text().splitlines()
+        log = (run / "retrieval_log.jsonl").read_text().splitlines()
         self.assertEqual(set(json.loads(log[0])["results"]), {"2101.00001", "2201.00002"})
 
 

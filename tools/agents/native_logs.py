@@ -10,6 +10,30 @@ from pathlib import Path
 import shutil
 
 
+def decompressed(path: Path) -> bytes:
+    """A file's bytes as a reader sees them: .gz and .zstd/.zst are expanded (zstandard, Python's compression.zstd,
+    or the zstd CLI); other files are returned as they are."""
+    data = Path(path).read_bytes()
+    suffix = Path(path).suffix
+    if suffix == '.gz':
+        import gzip
+        return gzip.decompress(data)
+    if suffix not in ('.zstd', '.zst'):
+        return data
+    try:
+        import zstandard
+        return zstandard.ZstdDecompressor().decompressobj().decompress(data)
+    except ImportError:
+        pass
+    try:
+        from compression import zstd
+        return zstd.decompress(data)
+    except ImportError:
+        pass
+    import subprocess
+    return subprocess.run(['zstd', '-dc'], input=data, capture_output=True, check=True).stdout
+
+
 def collect_native_logs(source: Path | None, destination: Path, secrets=()) -> dict:
     record = {'files': [], 'withheld': [], 'bytes': 0}
     if not source or not Path(source).is_dir():
@@ -20,7 +44,12 @@ def collect_native_logs(source: Path | None, destination: Path, secrets=()) -> d
             continue
         relative = path.relative_to(source).as_posix()
         data = path.read_bytes()
-        if any(secret in data for secret in secrets):
+        try:
+            plain = decompressed(path)        # a compressed session log hides the credential from a byte search
+        except Exception:
+            record['withheld'].append({'path': relative, 'reason': 'compressed and could not be checked for the credential'})
+            continue
+        if any(secret in data or secret in plain for secret in secrets):
             record['withheld'].append({'path': relative, 'reason': 'contains the model credential'})
             continue
         target = destination / relative

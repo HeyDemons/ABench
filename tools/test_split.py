@@ -39,9 +39,9 @@ def render() -> str:
            "",
            "Each part can be handed to one person or team. Testing a case means: download and freeze its real data "
            "(`python3 tools/prepare/run.py --case ID --list-sources`, then `--raw-dir`; data source `generated`: no "
-           "download), run its OJ calibration on the case's hardware (`./abench calibrate ID --data <raw-dir>`, `--data generated` for generated held-out sets, `--gpus N` on a GPU: "
+           "download), run its OJ calibration on the case's hardware on that frozen data (`./abench calibrate ID`, `--gpus N` on a GPU: "
            "trains the reference submission where the case is a checkpoint case and judges it on the held-out split; "
-           "`--data synthetic` first is a quick plumbing check), check that the "
+           "data frozen with `--synthetic N` first is a quick plumbing check), check that the "
            "reference scores at the base with a sensible interval, and record the result in `verify.csv` "
            "(`ref_run` real_cpu / real_gpu, `ref_result`, `data_frozen`, `blockers`, `next_step`). The Pro Set is "
            "verified by its own audit on 4 x H100 (`spec/pro_set.md`). Questions about a case's design go to its spec "

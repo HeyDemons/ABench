@@ -29,10 +29,16 @@ jobs:
           python-version: '3.11'
       - run: python3 -m pip install numpy pyyaml scipy scikit-learn pandas==2.2.3
       - run: ./abench images build --profile cpu-sci
+      - name: Name the image just built
+        run: echo "ABENCH_TEST_IMAGE=$(python3 -c 'import sys; sys.path.insert(0, "tools"); import images; print(images.resolve_image("cpu-sci", allow_unlocked=True, platform="linux/amd64"))')" >> "$GITHUB_ENV"
       - name: Verify Docker agent and judge isolation
-        env:
-          ABENCH_TEST_IMAGE: ghcr.io/huicir/abench/cpu-sci:2026.10
         run: |
           python3 -m unittest discover -s tests -p test_container_judge.py
           python3 -m unittest discover -s tests -p test_container_agent.py
-      - run: ./abench calibrate DS-PIPE-002 --data synthetic
+      - name: Calibrate DS-PIPE-002 on synthetic data
+        env:
+          ABENCH_ALLOW_SYNTHETIC: '1'
+        run: |
+          python3 tools/hidden_store.py keygen ~/.abench/hidden.key
+          python3 tools/prepare/run.py --case DS-PIPE-002 --synthetic 3000 --key-file ~/.abench/hidden.key
+          ./abench calibrate DS-PIPE-002

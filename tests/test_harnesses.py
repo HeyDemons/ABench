@@ -285,6 +285,27 @@ class NativeLogTest(unittest.TestCase):
             self.assertEqual(collect_native_logs(None, root / 'none'), {'files': [], 'withheld': [], 'bytes': 0})
 
 
+    def test_compressed_transcripts_are_checked_after_decompression(self):
+        import gzip, shutil, subprocess
+        from agents.native_logs import collect_native_logs
+        with tempfile.TemporaryDirectory() as raw:
+            source = Path(raw) / 'native/.dsh/sessions/s1'
+            source.mkdir(parents=True)
+            (source / 'clean.jsonl.gz').write_bytes(gzip.compress(b'{"type":"session"}\n'))
+            (source / 'leak.jsonl.gz').write_bytes(gzip.compress(b'{"header":"sk-secret-value-123"}\n'))
+            (source / 'broken.jsonl.gz').write_bytes(b'not gzip at all')
+            if shutil.which('zstd'):                 # the format DSH writes
+                subprocess.run(['zstd', '-q', '-o', str(source / 'leak.jsonl.zstd')], input=b'{"k":"sk-secret-value-123"}',
+                               check=True)
+            record = collect_native_logs(Path(raw) / 'native', Path(raw) / 'record', ['sk-secret-value-123'])
+            self.assertEqual([f['path'] for f in record['files']], ['.dsh/sessions/s1/clean.jsonl.gz'])
+            withheld = {w['path']: w['reason'] for w in record['withheld']}
+            self.assertEqual(withheld['.dsh/sessions/s1/leak.jsonl.gz'], 'contains the model credential')
+            self.assertEqual(withheld['.dsh/sessions/s1/broken.jsonl.gz'], 'compressed and could not be checked for the credential')
+            if shutil.which('zstd'):
+                self.assertEqual(withheld['.dsh/sessions/s1/leak.jsonl.zstd'], 'contains the model credential')
+            self.assertFalse((Path(raw) / 'record/.dsh/sessions/s1/leak.jsonl.gz').exists())
+
 class PreflightTest(unittest.TestCase):
     def test_each_protocol_reaches_the_configured_endpoint_with_its_key(self):
         cases = (('anthropic', '', '/v1/messages', 'x-api-key', 'fake-key'),

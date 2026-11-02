@@ -14,6 +14,27 @@ sys.path.insert(0, str(ROOT / 'tools'))
 from agents import get_agent
 from agents.models import resolve
 from egress_proxy import EgressProxy, decide, policy_for_case, summarize_log
+from agents.workspace import resource_limits
+
+
+class ResourceInputTest(unittest.TestCase):
+    def test_verified_container_limits_and_shortened_deadline_are_recorded(self):
+        import yaml
+        oj = yaml.safe_load((ROOT / 'cases/TC-FT-001/case/oj.yaml').read_text())
+        sandbox = {'backend': 'docker', 'resources_enforced': True, 'resources': oj['resources'],
+                   'inspect': {'resource_enforcement': {'actual': {'cpus': 8_000_000_000,
+                               'memory': 16 * 1024**3, 'pids': 1024}}},
+                   'probes': {'memory_current_bytes': 1024**3}}
+        info = resource_limits(oj, sandbox, 1800)
+        self.assertEqual(info['limits']['memory_bytes'], 16 * 1024**3)
+        self.assertEqual(info['memory_headroom_bytes_at_start'], 15 * 1024**3)
+        self.assertEqual(info['limits']['cpu_cores'], 8)
+        self.assertEqual(info['session_seconds'], 1800)
+        self.assertEqual(info['development_budget'], oj['agent_budget'])
+        sandbox['resources_enforced'] = False
+        info = resource_limits(oj, sandbox, 1800)
+        self.assertIsNone(info['limits']['memory_bytes'])
+        self.assertIsNone(info['memory_headroom_bytes_at_start'])
 
 
 class AgentsTest(unittest.TestCase):

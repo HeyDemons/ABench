@@ -22,7 +22,7 @@ SIZE, MD5_FIRST_MIB = 99003388, "c475f8f7617a200ba35b9facc48443c3"
 SOURCES = [{"name": "imagenette2-160.tgz", "url": URL, "size": SIZE, "md5_first_mib": MD5_FIRST_MIB,
             "license": "Apache-2.0 (github.com/fastai/imagenette LICENSE); images from ImageNet"}]
 CLASSES = ["n01440764", "n02102040", "n02979186", "n03000684", "n03028079", "n03394916", "n03417042", "n03425413",
-           "n03445777", "n03888605"]
+           "n03445777", "n03888257"]
 N_TRAIN, N_VAL, SIDE = 9469, 3925, 160
 
 
