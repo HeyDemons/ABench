@@ -56,3 +56,7 @@ class Dsh(Agent):
     def summarize(self, raw, stderr=b""):
         from .trajectory import summarize_dsh
         return summarize_dsh(raw, stderr)
+
+    def native_summary(self, directory):
+        from .trajectory import summarize_dsh_sessions
+        return summarize_dsh_sessions(directory)

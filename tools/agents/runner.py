@@ -333,6 +333,12 @@ def run(args):
             cpu = max(0,usage-baseline)/1e6 if usage is not None and baseline is not None else None
         out,err = (logs/'agent_stdout.log').read_bytes(),(logs/'agent_stderr.log').read_bytes()
         trajectory = adapter.summarize(out,err)
+        native = adapter.native_summary(result/'native_logs')
+        if trajectory is not None and native:
+            # The harness's own session logs are complete where its stdout was truncated, and name the models.
+            trajectory['native'] = native
+            if not trajectory.get('actual_models'):
+                trajectory['actual_models'] = native['actual_models']
         terminal = (trajectory or {}).get('result') or {}
         if terminal.get('is_error') or str(terminal.get('subtype','')).startswith('error'):
             status = 'failed' if status == 'succeeded' else status

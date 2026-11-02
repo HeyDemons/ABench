@@ -85,6 +85,11 @@ class Agent:
         """Trajectory summary from the harness's stdout events and its own stderr diagnostics."""
         return None
 
+    def native_summary(self, directory) -> dict[str, Any] | None:
+        """Summary of the harness's own session logs as collected under native_logs/ (complete where stdout is
+        truncated): responses, tool results and the models that answered. None when the harness keeps none."""
+        return None
+
     def effort_values(self, endpoint) -> tuple[str, ...] | None:
         """Effort values accepted for the endpoint's model; None when this harness does not restrict them."""
         return self.efforts
