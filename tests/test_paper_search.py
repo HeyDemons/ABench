@@ -104,7 +104,7 @@ class PaperSearch(unittest.TestCase):
                             "--result-root", str(res), "--run-id", "papers-test", "--timeout-seconds", "60"],
                            capture_output=True, text=True, env={k: v for k, v in os.environ.items()
                                                                 if not k.startswith("ABENCH_")})
-        run = res / "command" / "A-LIN-002" / "papers-test"      # runs/<harness>[-<model>]/<case>/<run>
+        run = res / "command" / "llm_opt" / "A-LIN-002" / "papers-test"      # runs/<harness>[-<model>]/<category>/<case>/<run>
         rec = json.loads((run / "agent_run.json").read_text())
         self.assertEqual(rec["retrieval_log"]["entries"], 2, r.stderr[-2000:])
         self.assertTrue(rec["retrieval_log"]["chain_ok"])

@@ -15,6 +15,6 @@ Operator files used by `./abench`; see [the runner contract](../spec/sandbox_run
 
 Freeze a case's data with `tools/prepare/run.py` (`--raw-dir` for real data, `--synthetic N` with
 `ABENCH_ALLOW_SYNTHETIC=1` for a plumbing check), then `./abench calibrate ID` runs the oracle and the judge in
-Docker on that data, from this checkout. Run records are filed under `runs/<harness>-<model>/ID/RUN/` (`runs/oracle/ID/RUN/` for calibration).
+Docker on that data, from this checkout. Run records are filed under `runs/<harness>-<model>/CATEGORY/ID/RUN/` (`runs/oracle/CATEGORY/ID/RUN/` for calibration).
 The former sudo calibration and local launch scripts have been replaced by `./abench calibrate` and
 `./abench run`. The Docker CLI and ordinary user permissions are sufficient for current commands.

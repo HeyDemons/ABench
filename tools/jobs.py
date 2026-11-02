@@ -152,13 +152,18 @@ def skip_reason(row: dict, inventory: list[dict], *, allow_nonreference: bool = 
 
 
 def plan(rows: list[dict], agents: list[str], models: list[str | None], attempts: int = 1,
-         inventory: list[dict] | None = None, allow_nonreference: bool = False, order: str = 'resources',
+         inventory: list[dict] | None = None, allow_nonreference: bool = False, order: str = 'category',
          allow_shared: bool = False, pairs: list[tuple[str, str | None]] | None = None) -> dict:
     """pairs, when given, are the harness × model combinations to run (e.g. only protocol-compatible ones)."""
     inventory = gpu_inventory() if inventory is None else inventory
     if attempts < 1:
         raise ValueError('attempts must be positive')
-    if order == 'resources':
+    if order == 'category':                 # the five categories in turn, each from low to high resources
+        from catalog import category_names
+        names = category_names()
+        rows = sorted(rows, key=lambda r: (names.index(r['category']), TIERS.index(r['resource_tier']),
+                                           int(r['resources']['gpus']), r['id']))
+    elif order == 'resources':
         rows = sorted(rows, key=lambda r: (TIERS.index(r['resource_tier']), int(r['resources']['gpus']), r['id']))
     elif order == 'case':
         rows = sorted(rows, key=lambda r: r['id'])
@@ -186,8 +191,8 @@ def run_path(root: Path, document: dict, entry: dict) -> Path:
     failure and a restart after an interrupted attempt each get a new directory; the old one is kept for audit."""
     suffix = ('-retry' + str(entry['retries']) if entry.get('retries') else '') + \
              ('-restart' + str(entry['restarts']) if entry.get('restarts') else '')
-    from agents import run_label
-    return root / 'runs' / run_label(entry['agent'], entry.get('model')) / entry['case'] / ('job-' + document['id'] + '-' + entry['id'] + suffix)
+    from agents import run_dir
+    return run_dir(root / 'runs', entry['agent'], entry.get('model'), entry['case'], 'job-' + document['id'] + '-' + entry['id'] + suffix)
 
 
 def _alive(pid: int | None, marker: str) -> bool:
@@ -493,7 +498,8 @@ def execute(document: dict, path: Path, *, concurrency: int = 1, max_gpu_hours: 
 
 
 def report(document: dict) -> dict:
-    groups = {k: defaultdict(lambda: {'verdicts': Counter(), 'results': []}) for k in ('difficulty_resources', 'area', 'harness_model')}
+    groups = {k: defaultdict(lambda: {'verdicts': Counter(), 'results': []})
+              for k in ('category', 'difficulty_resources', 'area', 'harness_model')}
     excluded = []
     for entry in document['entries']:
         if entry['catalog']['leaderboard'] == 'none':
@@ -503,7 +509,8 @@ def report(document: dict) -> dict:
         result = json.loads(evaluation.read_text()) if evaluation.is_file() else {}
         verdict = result.get('verdict', entry['state'])
         cat = entry['catalog']
-        keys = {'difficulty_resources': cat['difficulty'] + '/' + cat['resource_tier'], 'area': cat['area'],
+        keys = {'category': cat.get('category') or 'unknown',
+                'difficulty_resources': cat['difficulty'] + '/' + cat['resource_tier'], 'area': cat['area'],
                 'harness_model': entry['agent'] + '/' + (entry.get('model') or 'default')}
         for axis, key in keys.items():
             group = groups[axis][key]

@@ -51,7 +51,7 @@ def load_env(path: Path = ROOT / '.env') -> list[str]:
 
 def add_filters(parser):
     parser.add_argument('--suite', default='all')
-    for name in ('difficulty', 'resources', 'area', 'type', 'subset', 'cases'):
+    for name in ('category', 'difficulty', 'resources', 'area', 'type', 'subset', 'cases'):
         parser.add_argument('--' + name, help='comma-separated values')
 
 
@@ -302,8 +302,8 @@ def calibrate(argv: list[str]) -> int:
         command += ['--image', args.image]
     if args.backend == 'host':
         command += ['--smoke']
-    from agents import run_label
-    print(json.dumps({'run': str(ROOT / 'runs' / run_label('oracle') / args.case / run_id), 'synthetic_data': bool(data.get('synthetic'))}), flush=True)
+    from agents import run_dir
+    print(json.dumps({'run': str(run_dir(ROOT / 'runs', 'oracle', None, args.case, run_id)), 'synthetic_data': bool(data.get('synthetic'))}), flush=True)
     return call('sandbox_runner.py', command, env=env)
 
 
@@ -320,7 +320,7 @@ def jobs_command(argv: list[str]) -> int:
     run.add_argument('--dry-run', action='store_true')
     run.add_argument('--allow-nonreference-gpu', action='store_true')
     run.add_argument('--allow-shared-gpu', action='store_true', help='unscored Budget validation; Pro remains exclusive')
-    run.add_argument('--order', choices=('resources', 'case', 'input'), default='resources')
+    run.add_argument('--order', choices=('category', 'resources', 'case', 'input'), default='category')
     run.add_argument('--job-id')
     run.add_argument('--retries', type=int, default=1)
     for action in ('resume', 'status', 'report'):
@@ -412,8 +412,10 @@ def main(argv: list[str] | None = None) -> int:
         add_filters(ap)
         rows, suite = selected(ap.parse_args(rest))
         for row in rows:
-            print('\t'.join(str(row[k]) for k in ('id', 'difficulty', 'resource_tier', 'area', 'type', 'subset')))
-        emit({'suite': suite, 'count': len(rows), 'distribution': distribution(rows)})
+            print('\t'.join(str(row[k]) for k in ('id', 'category', 'difficulty', 'resource_tier', 'area', 'type', 'subset')))
+        from collections import Counter
+        emit({'suite': suite, 'count': len(rows), 'categories': dict(Counter(r['category'] for r in rows)),
+              'distribution': distribution(rows)})
         return 0
     if args.command == 'case':
         ap = argparse.ArgumentParser(prog='abench case')

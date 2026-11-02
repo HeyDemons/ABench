@@ -45,7 +45,7 @@ class JobResumeStateTests(unittest.TestCase):
                 launched = []
 
                 def popen(command, cwd, stdout, stderr):
-                    run = root / 'runs' / 'mock' / self.row['id'] / command[command.index('--run-id') + 1]
+                    run = root / 'runs' / 'mock' / self.row['category'] / self.row['id'] / command[command.index('--run-id') + 1]
                     run.mkdir(parents=True)
                     record = {'error_type': kind}
                     if filename == 'agent_run.json':
@@ -97,7 +97,7 @@ class JobResumeStateTests(unittest.TestCase):
                             run = Path(command[command.index('--run') + 1])
                             (run / 'evaluation.json').write_text(json.dumps({'verdict': 'evaluated', 'scorable': True}))
                         return SimpleNamespace(poll=lambda: 0 if recovers else 1, pid=None)
-                    run = root / 'runs' / 'mock' / self.row['id'] / command[command.index('--run-id') + 1]
+                    run = root / 'runs' / 'mock' / self.row['category'] / self.row['id'] / command[command.index('--run-id') + 1]
                     run.mkdir(parents=True)
                     (run / 'agent_run.json').write_text(json.dumps({'status': 'succeeded', 'error_type': None}))
                     (run / 'evaluation.json').write_text(json.dumps(failed))

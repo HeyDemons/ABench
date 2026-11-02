@@ -13,7 +13,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 TIERS = ('low', 'medium', 'high', 'pro')
-SNAPSHOT_FIELDS = ('id', 'difficulty', 'resource_tier', 'area', 'subarea', 'subset', 'type', 'leaderboard', 'environment')
+SNAPSHOT_FIELDS = ('id', 'category', 'difficulty', 'resource_tier', 'area', 'subarea', 'subset', 'type', 'leaderboard',
+                   'environment')
 # Copies of tools/harness_kit in every case; the judge's tools tree hash covers them.
 KIT_FILES = ('abench_stage.py', 'selfcheck.py', 'abench_metrics.py')
 
@@ -45,6 +46,33 @@ def judge_hash(case: str, root: Path = ROOT) -> str:
     return digest.hexdigest()
 
 
+def categories(root: Path = ROOT) -> dict[str, str]:
+    """Track -> category (spec/categories.yaml), in category order; every index.yaml track must have exactly one."""
+    tracks = {}
+    for category in yaml.safe_load((Path(root) / 'spec/categories.yaml').read_text())['categories']:
+        for track in category['tracks']:
+            if track in tracks:
+                raise ValueError(f'track {track} is in two categories')
+            tracks[track] = category['id']
+    return tracks
+
+
+def category_names(root: Path = ROOT) -> list[str]:
+    return [c['id'] for c in yaml.safe_load((Path(root) / 'spec/categories.yaml').read_text())['categories']]
+
+
+def category_of(case: str, root: Path = ROOT) -> str:
+    """The category a case's runs are filed under (runs/<harness>-<model>/<category>/<case>/<run>)."""
+    index = yaml.safe_load((Path(root) / 'index.yaml').read_text())
+    track = next((t['id'] for t in index['tracks'] if any(c['id'] == case for c in t['cases'])), None)
+    if track is None:
+        raise ValueError(f'unknown case: {case}')
+    category = categories(root).get(track)
+    if category is None:
+        raise ValueError(f'track {track} of {case} is in no category (spec/categories.yaml)')
+    return category
+
+
 def load_catalog(root: Path = ROOT) -> list[dict]:
     root = Path(root)
     index = yaml.safe_load((root / 'index.yaml').read_text())
@@ -57,13 +85,17 @@ def load_catalog(root: Path = ROOT) -> list[dict]:
                 if case in areas:
                     raise ValueError(f'{case}: duplicate area membership')
                 areas[case] = (area['id'], sub['id'])
+    track_category = categories(root)
     rows = []
     for track in index['tracks']:
+        if track['id'] not in track_category:
+            raise ValueError(f"track {track['id']} is in no category (spec/categories.yaml)")
         for case in track['cases']:
             cid = case['id']
             oj = yaml.safe_load((root / 'cases' / cid / 'case/oj.yaml').read_text())
             area, subarea = areas[cid]
             rows.append(dict(case, track=track['id'], track_name=track['name'], group=track.get('group'),
+                             category=track_category[track['id']],
                              resource_tier=case['budget'], area=area, subarea=subarea, registry=registry[cid],
                              environment=oj.get('environment') or {}, resources=oj.get('resources') or {},
                              leaderboard=(oj.get('resources') or {}).get('leaderboard'), oj=oj,
@@ -83,9 +115,10 @@ def _values(value) -> set:
     return {str(s) for item in value for s in str(item).split(',') if s}
 
 
-def select_cases(rows: list[dict], *, difficulty=None, resources=None, area=None, type=None,
+def select_cases(rows: list[dict], *, category=None, difficulty=None, resources=None, area=None, type=None,
                  subset=None, cases=None, **_) -> list[dict]:
-    filters = {'difficulty': difficulty, 'resource_tier': resources, 'area': area, 'type': type, 'subset': subset, 'id': cases}
+    filters = {'category': category, 'difficulty': difficulty, 'resource_tier': resources, 'area': area, 'type': type,
+               'subset': subset, 'id': cases}
     values = {k: _values(v) for k, v in filters.items()}
     requested = values['id']
     unknown = requested - {r['id'] for r in rows}

@@ -221,7 +221,7 @@ infrastructure failure (Docker, transfer, connection or timeout errors, in the p
 `tools/agents/errors.py`) may be judged again; it is archived as `evaluation.judge-error-N.json`.
 
 ```
-runs/<harness>-<model>/<case>/<run-id>/     # runs/oracle/... for calibration, runs/mock/... for the plumbing agent
+runs/<harness>-<model>/<category>/<case>/<run-id>/   # runs/oracle/... for calibration, runs/mock/... for the plumbing agent
   agent_run.json
   run_lock.json          # case lock checked before judging, and what ran the agent
   harness_version.json   # pinned CLI probe, including failed setup
@@ -252,8 +252,8 @@ all@VERSION --default` records the changed cases as a new version. The default `
 independent axes; Pro H100 hours and Budget reference-card GPU hours are reported separately.
 
 ```bash
-./abench cases list --difficulty low --resources low
-./abench jobs run --agent mock --dry-run
+./abench cases list --category data_science
+./abench jobs run --category cv --agent mock --dry-run
 ./abench jobs run --cases TC-FT-001,DS-PIPE-002 --agent mock -n 2 --hidden-key-file ~/.abench/hidden.key
 ./abench jobs resume JOB_ID
 ./abench jobs report JOB_ID

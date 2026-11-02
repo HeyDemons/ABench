@@ -59,7 +59,7 @@ authentication from its host-side client; build arguments alone do not configure
 adapter runs the reference submission in Docker and the judge evaluates it in fresh stage containers. It neither
 copies the repository nor prepares data, and it passes the hidden key only by path (`--hidden-key-file`, default
 `~/.abench/hidden.key`). Keys are generated on each host with mode 0600 and never copied with the code. Results
-appear under `runs/oracle/<case>/<run-id>/`. Data frozen with `--synthetic` is only a plumbing check.
+appear under `runs/oracle/<category>/<case>/<run-id>/`. Data frozen with `--synthetic` is only a plumbing check.
 
 For a real calibration, download the pinned sources and freeze them first:
 
@@ -209,15 +209,18 @@ The default session deadline comes from each case's unchanged `resources.wall_cl
 ## Select cases and run jobs
 
 ```bash
-./abench cases list --difficulty low --resources low
-./abench jobs run --agent mock --dry-run
+./abench cases list --category cv
+./abench jobs run --category llm_opt --agent dsh --dry-run
 ./abench jobs run --cases TC-FT-001,DS-PIPE-002 --agent mock -n 2 --hidden-key-file ~/.abench/hidden.key
 ./abench jobs resume JOB_ID -n 2
 ./abench jobs status JOB_ID
 ./abench jobs report JOB_ID
 ```
 
-`--suite`, `--difficulty`, `--resources`, `--area`, `--type`, `--subset` and `--cases` share the website's catalog.
+Runs are organized by five categories (`spec/categories.yaml`, as in the published dataset): `llm_opt`, `llm_post`,
+`cv`, `data_science` and `pro`. `--category` selects them; jobs run the categories in turn (`--order category`, the
+default) and `jobs report` groups by category. `--suite`, `--difficulty`, `--resources`, `--area`, `--type`,
+`--subset` and `--cases` share the website's catalog.
 Repeat `--agent` and `--model` (or give comma-separated values) for a matrix; `--attempts` repeats each combination.
 Jobs allocate CPU cores and idle GPUs, use per-GPU file locks across jobs, skip hardware this machine does not have
 (a compatible GPU that is busy is waited for, or left pending for `jobs resume`), resume completed `evaluation.json`
@@ -266,8 +269,9 @@ memory); GPUs are assigned as each case declares. Read-only inputs and a Unix pr
 inspect and runtime probes check the effective configuration. Every stage × seed uses a new judge container.
 The verified container RAM, CPU quota, shared memory, PID limits, startup memory headroom and the run's session
 deadline/compute allowance are saved as `resource_limits.json` with the run; the agent prompt is unchanged.
-Run records are filed by harness and model configuration: `runs/<harness>-<model>/<case>/<run-id>/`
-(`runs/oracle/...` for calibration, `runs/mock/...` for the plumbing agent).
+Run records are filed by harness and model configuration, then category: `runs/<harness>-<model>/<category>/<case>/<run-id>/`
+(`runs/oracle/...` for calibration, `runs/mock/...` for the plumbing agent), as `result/<category>/<case>/<model>/` in
+the published dataset.
 R/T/G/P stdio handshakes delay held-out inputs until the timed phase ends. Safe archive extraction rejects links,
 devices, traversal and oversized outputs. Signals and deadlines clean up run-labeled objects.
 Mount verification checks the named volume identity as well as its destination and access mode. Task and judge

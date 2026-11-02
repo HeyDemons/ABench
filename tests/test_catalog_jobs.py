@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 import catalog
 import jobs
 import abench
-from agents import run_label
+from agents import run_dir
 from types import SimpleNamespace
 
 
@@ -56,7 +56,7 @@ class CatalogTests(unittest.TestCase):
     def test_frozen_data_changes_do_not_change_any_case_suite_identity(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            for relative in ('index.yaml', 'verify.csv', 'spec/areas.yaml', 'spec/suites.yaml'):
+            for relative in ('index.yaml', 'verify.csv', 'spec/areas.yaml', 'spec/categories.yaml', 'spec/suites.yaml'):
                 target = root / relative
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(catalog.ROOT / relative, target)
@@ -80,7 +80,7 @@ class CatalogTests(unittest.TestCase):
             self.assertEqual(identity, self.default_suite)
 
     def _tree(self, root):
-        for relative in ('index.yaml', 'verify.csv', 'spec/areas.yaml', 'spec/suites.yaml'):
+        for relative in ('index.yaml', 'verify.csv', 'spec/areas.yaml', 'spec/categories.yaml', 'spec/suites.yaml'):
             target = root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(catalog.ROOT / relative, target)
@@ -145,6 +145,27 @@ class CatalogTests(unittest.TestCase):
             calibration = catalog.freeze_suite('calibration@1.0.0', root)
             self.assertEqual((calibration['cases'], calibration['default']), (3, False))
             self.assertEqual(catalog.suite_cases('calibration', root=root)[1], 'calibration@2.1.0')
+
+
+class CategoryTests(unittest.TestCase):
+    """Runs are organized by the five categories of the published dataset; every track and case has exactly one."""
+    def test_every_case_has_one_category_and_runs_are_filed_by_it(self):
+        rows = catalog.load_catalog()
+        counts = {name: sum(r['category'] == name for r in rows) for name in catalog.category_names()}
+        self.assertEqual(counts, {'llm_opt': 18, 'llm_post': 16, 'cv': 14, 'data_science': 19, 'pro': 6})
+        self.assertEqual(catalog.category_of('IC-RES-002'), 'data_science')
+        self.assertEqual(catalog.category_of('X-PPO-001'), 'llm_post')
+        self.assertEqual(run_dir('runs', 'oracle', None, 'A-NORM-005', 'r1'), Path('runs/oracle/llm_opt/A-NORM-005/r1'))
+        self.assertEqual([r['id'] for r in catalog.select_cases(rows, category='pro')],
+                         [r['id'] for r in rows if r['id'].startswith('PRO-')])
+        with self.assertRaisesRegex(ValueError, 'unknown case'):
+            catalog.category_of('NOPE-001')
+
+    def test_jobs_run_category_by_category(self):
+        rows = [r for r in catalog.load_catalog() if r['id'] in ('PRO-SPD-004', 'TC-FT-001', 'A-LIN-002', 'C-QNT-003')]
+        planned = jobs.plan(rows, ['mock'], [None], inventory=[], allow_shared=True)
+        self.assertEqual([e['case'] for e in planned['entries']], ['A-LIN-002', 'C-QNT-003', 'TC-FT-001', 'PRO-SPD-004'])
+        self.assertEqual([e['catalog']['category'] for e in planned['entries']], ['llm_opt', 'llm_post', 'data_science', 'pro'])
 
 
 class JobTests(unittest.TestCase):
@@ -307,7 +328,7 @@ class JobTests(unittest.TestCase):
             doc = jobs.plan([row], ['mock'], [None], inventory=[])
             doc.update(id='resume', suite='all@2026.10')
             entry = doc['entries'][0]
-            run = root / 'runs' / 'mock' / row['id'] / ('job-resume-' + entry['id'])
+            run = root / 'runs' / 'mock' / row['category'] / row['id'] / ('job-resume-' + entry['id'])
             run.mkdir(parents=True)
             (run / 'evaluation.json').write_text(json.dumps({'verdict': 'evaluated'}))
             with patch('catalog.load_catalog', return_value=[row]), patch('jobs.gpu_inventory', return_value=[]), patch('jobs.subprocess.Popen') as launch:
@@ -325,9 +346,9 @@ class JobTests(unittest.TestCase):
             code, text, evaluate = outcomes.pop(0)
             stdout.write(text.encode())
             stdout.flush()
-            # The runner's layout: <result root>/<harness>-<model>/<case>/<run id>
-            run = Path(command[command.index('--result-root') + 1]) / run_label(command[command.index('--agent') + 1]) / \
-                command[command.index('--case') + 1] / command[command.index('--run-id') + 1]
+            # The runner's layout: <result root>/<harness>-<model>/<category>/<case>/<run id>
+            run = run_dir(command[command.index('--result-root') + 1], command[command.index('--agent') + 1], None,
+                          command[command.index('--case') + 1], command[command.index('--run-id') + 1])
             run.mkdir(parents=True, exist_ok=True)
             (run / 'logs').mkdir(exist_ok=True)
             if evaluate:
@@ -401,8 +422,8 @@ class JobTests(unittest.TestCase):
                 row, doc, path = self._job(root, 'provider')
                 calls = []
                 def popen(command, cwd, stdout, stderr):
-                    run = Path(command[command.index('--result-root') + 1]) / run_label(command[command.index('--agent') + 1]) / \
-                        row['id'] / command[command.index('--run-id') + 1]
+                    run = run_dir(command[command.index('--result-root') + 1], command[command.index('--agent') + 1], None,
+                                  row['id'], command[command.index('--run-id') + 1])
                     run.mkdir(parents=True, exist_ok=True)
                     calls.append(run.name)
                     if len(calls) == 1:

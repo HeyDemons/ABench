@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
 from agents import HARNESSES, get_agent
 from agents.runner import run, verify_harness_version
+from catalog import category_of
 from runtime.agent import HostSoftEnvironment
 
 OUTPUTS = {'claude': b'2.1.312 (Claude Code)\n', 'codex': b'codex-cli 0.165.0\n',
@@ -150,7 +151,7 @@ class RunnerVersionGateTest(unittest.TestCase):
                         meter.assert_not_called()
                         evaluate.assert_not_called()
                         self.assertEqual(preflight.call_count, int(reached))
-                    result = root / 'claude-fake' / args.case / args.run_id    # runs/<harness>-<model>/<case>/<run>
+                    result = root / 'claude-fake' / category_of(args.case) / args.case / args.run_id   # runs/<harness>-<model>/<category>/<case>/<run>
                     record = json.loads((result / 'harness_version.json').read_text())
                     self.assertEqual(record['verified'], reached)
                     self.assertEqual(json.loads((result / 'cleanup.json').read_text()),
@@ -210,7 +211,7 @@ class RunnerVersionGateTest(unittest.TestCase):
             self.assertRegex(launched['ABENCH_DEADLINE'], r'^[0-9]+$')
             # As on main, the runner sets no thread counts: the agent sees the libraries' own defaults
             self.assertFalse({'OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'NUMEXPR_NUM_THREADS'} & set(launched))
-            self.assertTrue((root / 'claude-fake' / args.case / args.run_id / 'harness_version.json').is_file())
+            self.assertTrue((root / 'claude-fake' / category_of(args.case) / args.case / args.run_id / 'harness_version.json').is_file())
 
     def test_run_label(self):
         from agents import run_label

@@ -13,7 +13,7 @@ import tempfile
 import time
 import uuid
 import yaml
-from agents import get_agent, run_label
+from agents import get_agent, run_dir
 from agents.models import resolve
 from agents.workspace import resource_limits
 from runtime.agent import DockerAgentEnvironment, HostSoftEnvironment
@@ -158,7 +158,7 @@ def run(args):
     judge_kind = (oj.get('judge') or {}).get('kind')
     if mode == 'benchmark' and judge_kind not in (None,'pending') and key is None and not args.defer_evaluation:
         raise ValueError('benchmark requires --hidden-key-file or --defer-evaluation')
-    result = Path(args.result_root or s.ROOT / 'runs') / run_label(args.harness, endpoint['name'] if endpoint else None) / args.case / args.run_id
+    result = run_dir(args.result_root or s.ROOT / 'runs', args.harness, endpoint['name'] if endpoint else None, args.case, args.run_id)
     if result.exists() and any(result.iterdir()):
         raise ValueError('run record already exists and is immutable: '+str(result))
     tmp = Path(tempfile.mkdtemp(prefix='abench-agent-'))
