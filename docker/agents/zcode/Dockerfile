@@ -10,6 +10,7 @@ RUN pnpm install --frozen-lockfile --filter "@zcode/cli..." && pnpm -r --filter 
 FROM node:24.14.0-bookworm-slim AS node
 FROM ${PROFILE_IMAGE}
 USER root
+RUN apt-get update && apt-get install -y --no-install-recommends procps psmisc lsof strace curl wget netcat-openbsd iputils-ping iproute2 git less vim nano patch unzip zip xz-utils bzip2 file jq bc tree time rsync tmux && rm -rf /var/lib/apt/lists/*
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=build /src/apps/zcode-cli/packages/cli/dist /opt/zcode
 RUN rm -f /opt/zcode/*.map && printf '#!/bin/sh\nexec node /opt/zcode/zcode.cjs "$@"\n' > /usr/local/bin/zcode && chmod 755 /usr/local/bin/zcode
