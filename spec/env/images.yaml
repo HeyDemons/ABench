@@ -6,7 +6,7 @@ namespace: ghcr.io/huicir/abench
 node: 24.14.0
 # Command-line tools of every agent image. The original runner gave the agent the host's tools; the profile images
 # carry only the Python environment, so agent images add the usual system utilities (Debian bookworm packages).
-# Compilers are not added here: the judge runs submissions in the profile image, which has none.
+# Compilers are not added here but in the GPU profiles (system_packages), so the judge has them too.
 agent_tools: [procps, psmisc, lsof, strace, curl, wget, netcat-openbsd, iputils-ping, iproute2, git, less, vim, nano,
               patch, unzip, zip, xz-utils, bzip2, file, jq, bc, tree, time, rsync, tmux]
 # Harness CLIs, one agent image per harness and profile. Adapters (tools/agents) read their version from here.

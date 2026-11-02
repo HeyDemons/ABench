@@ -19,11 +19,12 @@ class ImageTests(unittest.TestCase):
         p=images.profiles()
         self.assertEqual(len(p),7)
         for name,item in p.items():
-            self.assertEqual(item['version'],'2026.10')
+            self.assertEqual(item['version'],'2026.10' if name=='cpu-sci' else '2026.11')
             for version in item['packages'].values():self.assertNotIn('>',version)
         text=(images.ROOT/'docker/profiles/gpu-torch-hf/Dockerfile').read_text()
-        self.assertIn('FROM ghcr.io/huicir/abench/gpu-torch:2026.10',text)
+        self.assertIn('FROM ghcr.io/huicir/abench/gpu-torch:2026.11',text)
         self.assertIn('COPY --from=cuda /usr/local/cuda',(images.ROOT/'docker/profiles/gpu-torch-cuda-dev/Dockerfile').read_text())
+        self.assertIn('install -y --no-install-recommends gcc g++',(images.ROOT/'docker/profiles/gpu-torch/Dockerfile').read_text())
     def test_versions_are_locked_side_by_side(self):
         old='sha256:'+'1'*64;new='sha256:'+'2'*64;agent='sha256:'+'3'*64
         lock={'cpu-sci@2026.09':{'linux/amd64':{'digest':old,'reference':'ghcr.io/huicir/abench/cpu-sci@'+old}},
@@ -124,5 +125,5 @@ class ImageTests(unittest.TestCase):
             text=(images.ROOT/f'docker/agents/{name}/Dockerfile').read_text()
             self.assertIn('FROM ${PROFILE_IMAGE}',text)
             self.assertIn(f"{pin['npm']}@{pin['version']}" if 'npm' in pin else pin['source']['commit'],text)
-            self.assertTrue(images.image_version('gpu-torch',name).startswith(f"2026.10-{name}{pin['version']}-b"))
+            self.assertTrue(images.image_version('gpu-torch',name).startswith(f"2026.11-{name}{pin['version']}-b"))
 if __name__=='__main__':unittest.main()

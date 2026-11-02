@@ -144,7 +144,7 @@ class CatalogTests(unittest.TestCase):
                 catalog.freeze_suite('all@3.0.0', root)
             calibration = catalog.freeze_suite('calibration@1.0.0', root)
             self.assertEqual((calibration['cases'], calibration['default']), (3, False))
-            self.assertEqual(catalog.suite_cases('calibration', root=root)[1], 'calibration@2026.10')
+            self.assertEqual(catalog.suite_cases('calibration', root=root)[1], 'calibration@2.1.0')
 
 
 class JobTests(unittest.TestCase):

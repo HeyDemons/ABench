@@ -43,7 +43,8 @@ the same version always takes precedence, and a published version cannot be lock
 Cases share seven versioned environment profiles. Build only the profile and harness combinations you use;
 there is no need to build all 35 combinations. Agent images inherit the profile's layers, including Torch/CUDA,
 and add the usual command-line tools the original host runner offered (`agent_tools` in `spec/env/images.yaml`:
-procps, curl, git, editors, archivers and so on); compilers stay out, as the judge's profile images have none.
+procps, curl, git, editors, archivers and so on). GPU profiles (2026.11) include gcc/g++ for `torch.compile` and
+Triton, so agent and judge compile alike, as on the original host.
 Task files, prompts, configuration and judge scripts are injected at runtime and do not require a rebuild.
 CLI, Node or packaging changes give the agent image a new `-b<recipe>` suffix; profile versions stay unchanged.
 Identical builds share a process lock and reuse a verified successful build. `ABENCH_IMAGE_BUILD_CACHE` overrides
