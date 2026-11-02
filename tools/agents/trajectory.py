@@ -307,27 +307,11 @@ def summarize_dsh(raw: bytes, stderr: bytes = b'') -> dict[str, Any] | None:
     return s.result()
 
 
-def _zstd_text(path):
-    """Decompressed text of a .zstd file: the zstandard module, Python's compression.zstd, or the zstd CLI."""
-    data = path.read_bytes()
-    try:
-        import zstandard
-        return zstandard.ZstdDecompressor().decompressobj().decompress(data).decode('utf-8', 'replace')
-    except ImportError:
-        pass
-    try:
-        from compression import zstd
-        return zstd.decompress(data).decode('utf-8', 'replace')
-    except ImportError:
-        pass
-    import subprocess
-    return subprocess.run(['zstd', '-dc'], input=data, capture_output=True, check=True).stdout.decode('utf-8', 'replace')
-
-
 def summarize_dsh_sessions(directory) -> dict[str, Any] | None:
     """DSH session logs (.dsh/sessions/**/session.v4.jsonl[.zstd]) keep every tool result in full and name the model
     of each response (assistant/message data.message.source.model), which `--json` stdout does not."""
     from pathlib import Path
+    from .native_logs import decompressed
     files = sorted(p for p in Path(directory).glob('.dsh/sessions/**/session.v*.jsonl*') if p.is_file())
     if not files:
         return None
@@ -336,7 +320,7 @@ def summarize_dsh_sessions(directory) -> dict[str, Any] | None:
     models = set()
     for path in files:
         try:
-            text = _zstd_text(path) if path.suffix == '.zstd' else path.read_text('utf-8', 'replace')
+            text = decompressed(path).decode('utf-8', 'replace')
         except Exception as exc:              # a record must not fail the run; say why it is incomplete
             out['readable'], out['error'] = False, f'{path.name}: {type(exc).__name__}: {exc}'[:300]
             continue
