@@ -57,7 +57,7 @@ class BundleTest(unittest.TestCase):
         for name, spec in manifest['harnesses'].items():
             script = harness_bundles.script(name)
             self.assertIn('cp /usr/local/bin/node "$P/bin/node"', script)
-            self.assertIn('tar -ch', script)                         # links become regular files
+            self.assertIn('tar -ch --hard-dereference', script)      # links become regular files, never hard links
             if spec.get('source'):
                 self.assertIn(spec['source']['commit'], script)
                 self.assertIn(f'"$P/bin/{name}"', script)

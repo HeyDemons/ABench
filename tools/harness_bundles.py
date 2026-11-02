@@ -63,8 +63,9 @@ def script(name: str) -> str:
                   'for f in "$P"/bin/*; do [ -L "$f" ] || continue; t=$(readlink -f "$f"); rm "$f"; '
                   'printf \'#!/bin/sh\\nPATH=%s/bin:$PATH exec %s "$@"\\n\' "$P" "$t" > "$f"; chmod 755 "$f"; done']
     lines += ['rm -rf /root/.npm',
-              # regular files only (the cache refuses links): copy what symlinks point to
-              'cd "$P" && tar -ch --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner .']
+              # regular files only (the cache refuses links): copy what symlinks point to, and store a file reached
+              # through several symlinks as a file each time instead of a hard link
+              'cd "$P" && tar -ch --hard-dereference --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner .']
     return '\n'.join(lines) + '\n'
 
 
