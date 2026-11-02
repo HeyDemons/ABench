@@ -136,12 +136,24 @@ class PrepareFlowTest(unittest.TestCase):
             return {'verdict': 'evaluated'}
         with patch.object(batch, 'download', return_value={'files': 1, 'fetched': 0, 'manual': []}), \
                 patch.object(batch, 'frozen', return_value=False), patch.object(batch, 'freeze', side_effect=freeze), \
+                patch.object(batch, 'active', side_effect=lambda case: False), \
                 patch.object(batch, 'calibrate', side_effect=calibrate), patch.object(batch, 'activate', return_value='activated'):
             out = batch.prepare(rows, Path('/raw'), Path('/key'), log=lambda line: None)
         self.assertEqual([r['status'] for r in out], ['done', 'needs operator', 'failed'])
         self.assertEqual(out[0]['steps']['activate'], 'activated')
         self.assertNotIn(('calibrate', 'B-1'), calls)
         self.assertIn('docker gone', out[2]['reason'])
+
+    def test_frozen_and_active_cases_skip_freezing_and_calibration(self):
+        with patch.object(batch, 'download', return_value={'files': 2, 'fetched': 0, 'manual': []}), \
+                patch.object(batch, 'frozen', return_value=True), patch.object(batch, 'active', return_value=True), \
+                patch.object(batch, 'freeze') as freeze, patch.object(batch, 'calibrate') as calibrate, \
+                patch.object(batch, 'activate', return_value='already active'):
+            out = batch.prepare([{'id': 'A-1'}], Path('/raw'), Path('/key'), log=lambda line: None)
+        freeze.assert_not_called()
+        calibrate.assert_not_called()
+        self.assertEqual(out[0]['steps'], {'download': {'files': 2, 'fetched': 0, 'manual': []}, 'freeze': 'already frozen',
+                                           'calibrate': 'already active', 'activate': 'already active'})
 
     def test_activation_waits_for_a_tuned_baseline(self):
         with tempfile.TemporaryDirectory() as d:

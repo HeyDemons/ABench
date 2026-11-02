@@ -12,7 +12,7 @@ Per case, in order, each step skipped when already done:
   freeze     tools/prepare/run.py with a fresh secret seed when the case has one (escrowed next to the key by
              run.py). When the case module asks for a raw path that is missing, a downloaded file of the same name
              is linked there and the freeze is retried.
-  calibrate  ./abench calibrate with the reference submission; GPU cases need --gpus.
+  calibrate  ./abench calibrate with the reference submission (not again for an active case); GPU cases need --gpus.
   activate   only after the calibration ends `evaluated`, and never while verify.csv says the case's baseline still
              has to be tuned (baseline_tuned: pending).
 Cases that need something only the operator can do are listed with the reason; the others continue.
@@ -230,6 +230,11 @@ def freeze(case: str, raw: Path, key: Path, allow_unverified: bool, attempts: in
     raise Manual("freeze failed: too many missing raw files")
 
 
+def active(case: str) -> bool:
+    lock = ROOT / "cases" / case / "case" / "data_lock.yaml"
+    return lock.is_file() and (yaml.safe_load(lock.read_text(encoding="utf-8")) or {}).get("activation") == "active"
+
+
 def calibration(case: str, run_id: str) -> dict:
     from agents import run_dir
     path = run_dir(ROOT / "runs", "oracle", None, case, run_id) / "evaluation.json"
@@ -294,9 +299,12 @@ def prepare(rows: list[dict], raw_root: Path, key: Path, steps=STEPS, gpus: str 
                     record["steps"]["freeze"] = "frozen"
                 log(f"{case} freeze: {record['steps']['freeze']}")
             if "calibrate" in steps:
-                result = calibrate(case, row, key, run_id, gpus, nonreference)
-                record["steps"]["calibrate"] = {"verdict": result.get("verdict"), "run_id": run_id}
-                log(f"{case} calibrate: {result.get('verdict')}")
+                if active(case):                      # calibrated before it was activated
+                    record["steps"]["calibrate"] = "already active"
+                else:
+                    result = calibrate(case, row, key, run_id, gpus, nonreference)
+                    record["steps"]["calibrate"] = {"verdict": result.get("verdict"), "run_id": run_id}
+                log(f"{case} calibrate: {record['steps']['calibrate']}")
             if "activate" in steps:
                 record["steps"]["activate"] = activate(case)
                 log(f"{case} activate: {record['steps']['activate']}")
