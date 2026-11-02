@@ -97,13 +97,14 @@ class RunnerVersionGateTest(unittest.TestCase):
             for output, reached in ((b'0.0.1 (Claude Code)\n', False), (OUTPUTS['claude'], True)):
                 with self.subTest(backend=backend, matching=reached), tempfile.TemporaryDirectory() as raw:
                     root = Path(raw)
-                    args = SimpleNamespace(case='TC-FT-001', timeout_seconds=5, suite='all@2026.10', device='cpu',
+                    args = SimpleNamespace(case='TC-FT-001', timeout_seconds=5, suite='all@2.2.0', device='cpu',
                         run_id='version-gate', backend=backend, smoke=smoke, harness='claude', network='none',
                         model=None, base_url=None, allow_private_model_endpoint=False, claude_model=None,
                         dry_run=False, gpus=None, hidden_key_file=None, defer_evaluation=True, result_root=str(root),
                         papers_index=None, models_dir=None, image='mislabeled-image:new-cli', pass_env=[],
                         claude_effort=None, claude_max_budget_usd=None, attempt=1, claude_bin='claude')
                     environment = Mock()
+                    environment.default_path.return_value = '/opt/abench/harness/bin:/usr/bin:/bin'
                     environment.start.return_value = {'backend': backend, 'verified': True}
                     environment.record = {'cleanup': {'removed': [], 'failed': ['fake-container'],
                                                       'remaining': ['fake-container']}}
@@ -133,7 +134,7 @@ class RunnerVersionGateTest(unittest.TestCase):
                             ('agents.runner.DockerAgentEnvironment', Mock(side_effect=construct)),
                             ('agents.runner.HostSoftEnvironment', Mock(side_effect=construct)),
                             ('images.image_attestation', Mock(return_value={'locked': True})),
-                            ('catalog.suite_cases', Mock(return_value=([], 'all@2026.10'))),
+                            ('catalog.suite_cases', Mock(return_value=([], 'all@2.2.0'))),
                             ('catalog.load_catalog', Mock(return_value=[{'id': args.case}])),
                             ('catalog.snapshot', Mock(return_value={'leaderboard': 'none'})),
                             ('sandbox_runner.build_agent_view', Mock(side_effect=view)),
@@ -162,18 +163,20 @@ class RunnerVersionGateTest(unittest.TestCase):
     def test_agent_receives_an_integer_deadline_and_the_run_is_filed_under_harness_and_model(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
-            args = SimpleNamespace(case='TC-FT-001', timeout_seconds=5, suite='all@2026.10', device='cpu',
+            args = SimpleNamespace(case='TC-FT-001', timeout_seconds=5, suite='all@2.2.0', device='cpu',
                 run_id='deadline', backend='docker', smoke=False, harness='claude', network='none',
                 model=None, base_url=None, allow_private_model_endpoint=False, claude_model=None,
                 dry_run=False, gpus=None, hidden_key_file=None, defer_evaluation=True, result_root=str(root),
                 papers_index=None, models_dir=None, image='claude-image', pass_env=[],
                 claude_effort=None, claude_max_budget_usd=None, attempt=1, claude_bin='claude')
             environment = Mock()
+            environment.default_path.return_value = '/opt/abench/harness/bin:/usr/local/cuda/bin:/usr/bin:/bin'
             environment.start.return_value = {'backend': 'docker', 'verified': True}
             environment.record = {'cleanup': {'removed': [], 'failed': [], 'remaining': []}}
-            launched = {}
+            launched, constructed = {}, {}
             def construct(args, paths, *rest, **kwargs):
                 environment.paths = paths
+                constructed.update(kwargs)
                 return environment
             def execute(probe, env, timeout, out, err):
                 if probe.argv == ['claude', '--version']:
@@ -194,7 +197,7 @@ class RunnerVersionGateTest(unittest.TestCase):
                     ('agents.runner.resolve', Mock(return_value=endpoint)),
                     ('agents.runner.DockerAgentEnvironment', Mock(side_effect=construct)),
                     ('images.image_attestation', Mock(return_value={'locked': True})),
-                    ('catalog.suite_cases', Mock(return_value=([], 'all@2026.10'))),
+                    ('catalog.suite_cases', Mock(return_value=([], 'all@2.2.0'))),
                     ('catalog.load_catalog', Mock(return_value=[{'id': args.case}])),
                     ('catalog.snapshot', Mock(return_value={'leaderboard': 'none'})),
                     ('sandbox_runner.build_agent_view', Mock(side_effect=view)),
@@ -209,6 +212,9 @@ class RunnerVersionGateTest(unittest.TestCase):
                     run(args)
             # Integer Unix seconds, as on main and as the Sandbox Guide's own command parses it
             self.assertRegex(launched['ABENCH_DEADLINE'], r'^[0-9]+$')
+            # The agent runs in the task image with its harness bundle first on the image's own PATH
+            self.assertEqual(constructed.get('harness'), 'claude')
+            self.assertEqual(launched['PATH'], '/opt/abench/harness/bin:/usr/local/cuda/bin:/usr/bin:/bin')
             # As on main, the runner sets no thread counts: the agent sees the libraries' own defaults
             self.assertFalse({'OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'NUMEXPR_NUM_THREADS'} & set(launched))
             self.assertTrue((root / 'claude-fake' / category_of(args.case) / args.case / args.run_id / 'harness_version.json').is_file())

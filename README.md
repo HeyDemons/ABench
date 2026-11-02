@@ -30,23 +30,25 @@ Image publication and locking require registry access. Until the published diges
 image to validate the pipeline; local images produce **unscorable** records unless you lock them on this host:
 
 ```bash
-./abench images build --profile cpu-sci
-./abench images build --profile cpu-sci --agent claude  # one agent image per harness you run
+./abench images build --profile cpu-sci                 # the task image of the cases you run
+./abench images build --agent claude                     # the CLI bundle of each harness you run (any profile)
 ./abench images lock --local --profile cpu-sci           # likewise --agent claude, and --profile egress for egress runs
 ```
 
-`images lock --local` records the local image ID in `spec/env/images.local.lock.yaml`. Runs on exactly those images
-score; their records list `image_locks` (`local`) and an `image_lock_note` that the images are unpublished and cannot
-be pulled elsewhere. Rebuilding changes the ID, so the run is unscorable until you lock again. A published digest of
+`images lock --local` records the local image ID (and, for a harness, the bundle's content digest) in
+`spec/env/images.local.lock.yaml`. Runs on exactly those images and bundles score; their records list `image_locks`
+(`local`) and an `image_lock_note` that they are unpublished and cannot be pulled elsewhere. Rebuilding changes the ID, so the run is unscorable until you lock again. A published digest of
 the same version always takes precedence, and a published version cannot be locked locally.
 
-Cases share seven versioned environment profiles. Build only the profile and harness combinations you use;
-there is no need to build all 35 combinations. Agent images inherit the profile's layers, including Torch/CUDA,
-and add the usual command-line tools the original host runner offered (`agent_tools` in `spec/env/images.yaml`:
-procps, curl, git, editors, archivers, pdftotext and so on). GPU profiles (2026.11) include gcc/g++ for `torch.compile` and
-Triton, so agent and judge compile alike, as on the original host.
+Cases share seven environment profiles with semantic versions (1.0.0; never dates). The agent runs in its case's
+profile image, the same task environment the judge uses: there is no image per harness. The selected adapter mounts
+its harness bundle read-only at `/opt/abench/harness` (Node.js plus the pinned CLI, built once per host by
+`images build --agent NAME` into `~/.abench/harness/`), writes its configuration and starts it; the bundle's `bin`
+comes first on the image's own PATH. Root profiles carry the command-line tools the original host runner offered
+(`system_packages` in `spec/env/profiles.yaml`: procps, curl, git, editors, archivers, pdftotext and so on), and the
+GPU profiles add gcc/g++ for `torch.compile` and Triton, so agent and judge have the same tools, as on the original host.
 Task files, prompts, configuration and judge scripts are injected at runtime and do not require a rebuild.
-CLI, Node or packaging changes give the agent image a new `-b<recipe>` suffix; profile versions stay unchanged.
+A CLI, Node.js or bundle recipe change gives the bundle a new identity; profile versions stay unchanged.
 Identical builds share a process lock and reuse a verified successful build. `ABENCH_IMAGE_BUILD_CACHE` overrides
 the persistent build metadata directory (normally `~/.cache/abench/images`). Published digest locks remain the
 authority for scoring.
@@ -96,8 +98,8 @@ python3 -m pip install numpy pyyaml
 cp .env.example .env          # model keys (key_env in spec/models.yaml); ABENCH_EGRESS_UPSTREAM if you need a proxy
 python3 tools/hidden_store.py keygen ~/.abench/hidden.key      # held-out encryption key, generated on this host
 ./abench images build --profile cpu-sci
-./abench images build --profile cpu-sci --agent dsh
-ABENCH_TEST_IMAGE=<cpu-sci image> ABENCH_TEST_AGENT_IMAGES=dsh=<agent image> python3 -m unittest \
+./abench images build --agent dsh
+ABENCH_TEST_IMAGE=<cpu-sci image> ABENCH_TEST_HARNESSES=dsh python3 -m unittest \
   tests.test_container_agent tests.test_container_judge tests.test_egress tests.test_containers \
   tests.test_transfer_cleanup tests.test_volume_cache tests.test_harness_contract
 python3 tools/paper_search/build_paper_index.py --snapshot arxiv-metadata-oai-snapshot.jsonl --cutoff 2026-09-01 \
@@ -125,7 +127,7 @@ export ABENCH_JUDGE_TOOLS_SHA256="$(python3 -c 'import sys; sys.path.insert(0,"t
   secret seed where the case has one, calibrates (GPU cases need `--gpus`) and activates after an `evaluated`
   calibration. Cases that need the operator (a web page instead of a file, an untuned baseline, no GPU) are
   listed with the reason under `needs_operator`; `--steps` runs a subset, e.g. `--steps download`.
-- **Images.** Agent images name the harness; build one per profile and harness you run. Behind a proxy whose
+- **Images.** Build the profile image of each case and one bundle per harness you run; any profile uses any bundle. Behind a proxy whose
   address differs inside Docker, see the proxy notes above.
 - **Isolation checks.** These run real containers: no network or DNS for the agent, read-only view, the hub
   blocked by the egress proxy, timeout kills, refused symlinks, the judge's stage protocol (held-out inputs only after
@@ -160,7 +162,7 @@ export ABENCH_JUDGE_TOOLS_SHA256="$(python3 -c 'import sys; sys.path.insert(0,"t
   in the checkout at startup (variables set in the shell take precedence). `.env` is ignored by git and excluded from
   Docker build contexts; only `.env.example` is committed.
 
-Five harnesses are supported, each pinned in `spec/env/images.yaml` and installed in its own agent image:
+Five harnesses are supported, each pinned in `spec/env/images.yaml` and run from its own bundle in the task image:
 
 | `--agent` | Harness | Default model (`spec/models.yaml`) | Key variable | Protocols it accepts |
 |---|---|---|---|---|
@@ -173,7 +175,7 @@ Five harnesses are supported, each pinned in `spec/env/images.yaml` and installe
 Before authentication or the development budget starts, the runner probes the installed CLI version without
 model credentials. A missing, unrecognized or mismatched version stops the run and leaves `harness_version.json`
 and probe logs for diagnosis. Records retain `harness_version` and add requested/actual CLI versions and verified
-evidence. Retagging an old CLI as a newer release does not satisfy the check; build the requested agent image.
+evidence. Relabelling an old CLI as a newer release does not satisfy the check; build the requested bundle.
 ZCode's source-release version and its executable's reported version are distinct pins.
 
 `./abench harnesses` lists each harness's capabilities (protocols, accepted effort values, disabled provider tools,

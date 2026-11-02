@@ -24,12 +24,15 @@ published digest locks allow validation but make results unscorable, unless thei
 on the host (`./abench images lock --local`), which scores and is recorded as unpublished. Build only the profiles
 needed for a run.
 
-Cases share seven versioned profiles; agent images add one harness to the same profile layers. Build only the
-combinations a batch needs, rather than all 35 profile × harness combinations. Runtime task files, prompts,
-configuration and judge/control scripts are uploaded or mounted and do not enter the image build identity.
-Agent tags contain the profile version, harness pin and a `-b<recipe>` suffix. Node, harness source or packaging
-recipe changes produce a new agent identity; the profile version changes only when its own environment changes.
-Platform-specific published digests still establish the actual image identity for scoring.
+Cases share seven profiles with semantic versions. The agent container runs the case's profile image (the task
+environment, as the judge does); the harness CLI is not baked into an image. `tools/harness_bundles.py` builds each
+pinned CLI with its own Node.js once per host in a throwaway Node container (`./abench images build --agent NAME`),
+into a directory of regular files whose identity covers the pin, Node.js, build script and platform. At run time the
+adapter mounts it as a content-addressed read-only volume at `/opt/abench/harness`, puts its `bin` first on the
+image's PATH, writes its configuration and starts the CLI. The run records the volume's content digest and scores
+only when it is the digest locked on this host (`images lock --local --agent NAME`). Runtime task files, prompts,
+configuration and judge/control scripts are uploaded or mounted and do not enter any build identity.
+Platform-specific published digests still establish the actual profile image identity for scoring.
 
 Local builds serialize identical requests per Docker daemon/context and build-input identity. The second request
 rechecks the image and verified environment under the lock and reuses a successful build when they still match.
@@ -43,12 +46,12 @@ Build readiness and locks persist under `ABENCH_IMAGE_BUILD_CACHE` (default `~/.
 `--timeout-seconds`, `--result-root`, `--run-id`, `--attempt`, `--suite`, `--smoke` and `--dry-run`.
 The host backend requires `--smoke`. The command adapter accepts an argv command with `$ABENCH_*` placeholders;
 its custom image must be locked for scoring. New harnesses implement the small adapter contract under
-`tools/agents/`; real CLI binaries are installed at image build time, never during an agent session.
+`tools/agents/`; real CLIs come from their prebuilt bundle, never from a download during an agent session.
 
 ## Harnesses
 
 Every harness runs headless and auto-approving inside the agent container (the container is the sandbox). Its pin
-lives in `spec/env/images.yaml`; the agent image is the unchanged profile image plus Node.js and that one CLI.
+lives in `spec/env/images.yaml`; the container is the case's profile image with that harness's bundle mounted.
 Configuration goes into the agent HOME before launch; keys reach the CLI only as environment variables.
 
 Each pinned harness declares an offline version command and its expected output format. After container startup

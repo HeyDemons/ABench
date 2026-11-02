@@ -1,4 +1,5 @@
-"""Real harness CLIs in their agent images, offline, against the fake model service. Opt-in, dummy credentials only.
+"""Real harness CLIs from their bundles in a task image, offline, against the fake model service. Opt-in, dummy
+credentials only.
 
 Each harness runs through the runner's own Docker agent lifecycle (network none, uid 1000, configuration written
 into HOME). The fake service runs on the container's loopback behind a forward proxy, and the model base URL names a
@@ -8,7 +9,9 @@ prompt/model/key delivery, that the headless approval mode really runs the tool,
 offered, a parseable trajectory, the pinned CLI version, that a provider failure (402) is classified as such, and
 that the CLI's own session transcripts are collected without the credential.
 
-    ABENCH_TEST_AGENT_IMAGES=claude=IMAGE,codex=IMAGE,... python3 -m unittest tests.test_harness_contract
+    ABENCH_TEST_IMAGE=<profile image> ABENCH_TEST_HARNESSES=claude,codex,... python3 -m unittest tests.test_harness_contract
+
+Each named harness needs its bundle on this host (./abench images build --agent NAME).
 """
 import json
 import os
@@ -50,16 +53,17 @@ def offered(request):
     return names - {None}
 
 
-def images():
-    return dict(item.split('=', 1) for item in os.environ.get('ABENCH_TEST_AGENT_IMAGES', '').split(',') if '=' in item)
+def harnesses():
+    return [n for n in os.environ.get('ABENCH_TEST_HARNESSES', '').split(',') if n]
 
 
-@unittest.skipUnless(images() and shutil.which('docker'), 'set ABENCH_TEST_AGENT_IMAGES=name=image,... (local agent images)')
+@unittest.skipUnless(harnesses() and os.environ.get('ABENCH_TEST_IMAGE') and shutil.which('docker'),
+                     'set ABENCH_TEST_IMAGE=<profile image> and ABENCH_TEST_HARNESSES=name,... (bundles built on this host)')
 class HarnessContract(unittest.TestCase):
     def test_each_harness(self):
-        for name, image in images().items():
+        for name in harnesses():
             with self.subTest(harness=name):
-                self.check(name, image)
+                self.check(name, os.environ['ABENCH_TEST_IMAGE'])
 
     def check(self, name, image):
         agent = get_agent(name)
@@ -75,7 +79,7 @@ class HarnessContract(unittest.TestCase):
                                    backend='docker', smoke=True, claude_bin='claude', claude_effort=None,
                                    claude_max_budget_usd=None)
             oj = yaml.safe_load((ROOT / 'cases/TC-FT-001/case/oj.yaml').read_text())
-            environment = DockerAgentEnvironment(args, paths, oj, image, None, None)
+            environment = DockerAgentEnvironment(args, paths, oj, image, None, None, harness=name)
             try:
                 self.assertTrue(environment.start()['verified'])
                 docker, cid, runpaths = environment.docker, environment.cid, environment.paths
@@ -88,7 +92,7 @@ class HarnessContract(unittest.TestCase):
                                 model=MODEL.get(name, 'fake-model'), key_env='ABENCH_FAKE_KEY')
                 proxy = f'http://127.0.0.1:{PROXY}'
                 env = {'HOME': str(runpaths['home']), 'TMPDIR': str(runpaths['tmp']), 'LANG': 'C.UTF-8',
-                       'PATH': '/usr/local/bin:/usr/bin:/bin', 'ABENCH_FAKE_KEY': KEY,
+                       'PATH': environment.default_path(), 'ABENCH_FAKE_KEY': KEY,
                        **{k: proxy for k in ('HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy')},
                        'NO_PROXY': 'localhost,127.0.0.1', 'no_proxy': 'localhost,127.0.0.1', **agent.proxy_env(proxy)}
                 env.update({n: KEY for n in agent.credential_env(endpoint)})

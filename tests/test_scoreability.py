@@ -113,7 +113,7 @@ class HarnessIdentityAttestationTest(unittest.TestCase):
                   'network': {'mode': 'none'}, 'budget': {'over_budget': False},
                   'sandbox': {'backend': 'docker', 'verified': True, 'resources_enforced': True,
                               'platform': 'linux/amd64', 'image_attestation': {'locked': True},
-                              'hardware_matches': True}}
+                              'harness_bundle': {'locked': True, 'lock': 'local'}, 'hardware_matches': True}}
         for harness in HARNESSES:
             record['harness'] = harness
             for proof in (None, {'verified': True, 'requested_version': '1', 'actual_version': '0'},
@@ -124,6 +124,11 @@ class HarnessIdentityAttestationTest(unittest.TestCase):
                 self.assertIn('actual harness CLI version not verified', result['scoreability_reason'])
             record['sandbox']['harness_cli_version'] = {'verified': True, 'requested_version': '1', 'actual_version': '1'}
             self.assertTrue(apply_agent_attestation({'scorable': True}, record)['scorable'])
+            # the CLI must come from the bundle locked on this host
+            record['sandbox']['harness_bundle'] = {'locked': False}
+            result = apply_agent_attestation({'scorable': True}, record)
+            self.assertIn('harness CLI bundle is not the one locked', result['scoreability_reason'])
+            record['sandbox']['harness_bundle'] = {'locked': True, 'lock': 'local'}
             record['sandbox']['cleanup'] = {'remaining': {'containers': ['cid'], 'volumes': []}}
             result = apply_agent_attestation({'scorable': True}, record)
             self.assertFalse(result['scorable'])

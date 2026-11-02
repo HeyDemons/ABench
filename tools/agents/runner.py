@@ -204,15 +204,17 @@ def run(args):
         attestation = {'locked':False}
         if args.backend == 'docker':
             # Local images can exercise the pipeline, but never establish published-image attestation.
-            image = image or resolve_image(oj['environment'],args.harness,allow_unlocked=True)
-            attestation = image_attestation(image,oj['environment'],args.harness)
+            # Every agent runs in the case's profile image (the task environment); a harness CLI is its bundle.
+            image = image or resolve_image(oj['environment'],allow_unlocked=True)
+            attestation = image_attestation(image,oj['environment'])
             sidecar_image = resolve_image('egress',allow_unlocked=True) if pol else None
-            environment = DockerAgentEnvironment(args,paths,oj,image,sidecar_image,pol)
+            environment = DockerAgentEnvironment(args,paths,oj,image,sidecar_image,pol,
+                                                 harness=args.harness if adapter.protocols else None)
         else:
             environment = HostSoftEnvironment(args,paths,policy=pol)
         runpaths = environment.paths
         env, passed = s.agent_env(args,runpaths)
-        env['PATH'] = '/usr/local/bin:/usr/bin:/bin' if args.backend == 'docker' else os.environ.get('PATH','')
+        env['PATH'] = environment.default_path() if args.backend == 'docker' else os.environ.get('PATH','')
         env['ABENCH_RETRIEVAL_LOG'] = str(runpaths['retrieval_log'])
         if papers:
             env['ABENCH_PAPERS_INDEX'] = '/abench/papers/current.sqlite' if args.backend == 'docker' else str(paths['papers']/'current.sqlite')

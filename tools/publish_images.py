@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Release workflow: publish generated images, attest agent Python and collect platform locks.
+"""Release workflow: publish the profile and egress images and collect platform locks.
 
 Requires a configured buildx builder and authenticated registry. This command performs publication.
 Every image version is immutable: a version that is already published and locked is skipped, so bumping one
-profile (spec/env/profiles.yaml) or a harness CLI pin (spec/env/images.yaml) publishes only the new versions, and their digests are added
+profile (spec/env/profiles.yaml) publishes only the new versions, and their digests are added
 to spec/env/images.lock.yaml next to the existing ones. Review the uploaded locks and commit them before using the
 release for scoring.
 """
@@ -13,7 +13,7 @@ from pathlib import Path
 import subprocess
 
 import yaml
-from images import ROOT, agent_recipe_hash, env_lock_path, image_key, image_version, manifest, profiles
+from images import ROOT, env_lock_path, image_version, manifest, profiles
 
 LOCK = ROOT / 'spec/env/images.lock.yaml'
 
@@ -92,28 +92,6 @@ def main():
                 out = env_lock_path(name, version, platform)
                 out.parent.mkdir(parents=True, exist_ok=True)
                 out.write_text(json.dumps(json.loads(raw), indent=2) + '\n')
-        for harness in config['harnesses']:
-            agent_key, agent_version = image_key(name, harness), image_version(name, harness)
-            dockerfile = f'docker/agents/{harness}/Dockerfile'
-            if not published(f'{config["namespace"]}/{agent_key}:{agent_version}'):
-                for platform in platforms:
-                    expected = env_lock_path(name, version, platform)
-                    check_tag = f'abench-release-check-{harness}-{name}-' + platform.replace('/', '-') + ':' + agent_version
-                    try:
-                        command(['docker', 'buildx', 'build', '--load', '--platform', platform, '-t', check_tag,
-                                 '-f', dockerfile, '--build-arg',
-                                 'PROFILE_IMAGE=' + lock['images'][f'{name}@{version}'][platform]['reference'], '.'])
-                        result = json.loads(command(['docker', 'run', '--rm', '--platform', platform, '--network', 'none',
-                                                     check_tag, 'python3', '/abench/tools/record_environment.py',
-                                                     '--profile', name], capture=True))
-                        from record_environment import compare
-                        differences = compare(json.loads(expected.read_text()), result)
-                        if differences:
-                            raise RuntimeError(f'{check_tag} changed profile Python environment: {differences}')
-                    finally:
-                        subprocess.run(['docker', 'image', 'rm', check_tag], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            release(agent_key, agent_version, dockerfile, platforms, ['--build-arg', 'PROFILE_IMAGE=' + tag],
-                    recipe_sha256=agent_recipe_hash(name, harness))
         done.add(name)
 
     for name in definitions:

@@ -40,7 +40,7 @@ class JobResumeStateTests(unittest.TestCase):
             with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 document = jobs.plan([self.row], ['mock'], [None], inventory=[])
-                document.update(id=name, suite='all@2026.10')
+                document.update(id=name, suite='all@2.2.0')
                 path = root / 'jobs' / name / 'job.json'
                 launched = []
 
@@ -87,7 +87,7 @@ class JobResumeStateTests(unittest.TestCase):
             with self.subTest(recovers=recovers), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 document = jobs.plan([self.row], ['mock'], [None], inventory=[])
-                document.update(id='judge', suite='all@2026.10')
+                document.update(id='judge', suite='all@2.2.0')
                 commands = []
 
                 def popen(command, cwd, stdout, stderr):
@@ -119,7 +119,7 @@ class JobResumeStateTests(unittest.TestCase):
             with self.subTest(state=state), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 document = jobs.plan([self.row], ['mock'], [None], inventory=[])
-                document.update(id='missed-exit', suite='all@2026.10')
+                document.update(id='missed-exit', suite='all@2.2.0')
                 entry = document['entries'][0]
                 run = jobs.run_path(root, document, entry)
                 run.mkdir(parents=True)

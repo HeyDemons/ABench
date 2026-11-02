@@ -39,7 +39,7 @@ submission:
   allowed_top_level: [README.md, model.py, src, checkpoint, report, references.yaml, manifest.yaml]
   max_bytes: 52428800
   report_profile: design_report_v2
-environment: {profile: cpu-sci, version: "2026.10"}
+environment: {profile: cpu-sci, version: "1.0.0"}
 resources:
   budget_tier: budget
   hardware: {reference: "8 CPU cores"}
@@ -126,9 +126,9 @@ agent stage), `metrics`, `gates`. All temporary directories are deleted.
    statement that has one.
 7. **Environment.** Image digests must match the platform-specific published locks in
    `spec/env/images.lock.yaml`, keyed `name@version`: a case runs the profile version its spec pins, so a newer
-   version of the profile never changes an older case's environment. Agent image versions add their CLI pin and
-   `-b<recipe>` packaging identity, covering Node and the harness packaging recipe. Build identities also track the
-   platform and actual parent image. Only needed profile × harness combinations are built; cases reuse their
+   version of the profile never changes an older case's environment. Versions are semantic versions. Agents run in
+   the same profile image; each harness CLI is a host-built bundle locked by its content digest. Build identities
+   also track the platform and actual parent image. Only the needed profiles and bundles are built; cases reuse their
    environment images, and runtime task files do not require rebuilding. Persistent per-build locks and successful
    environment checks prevent duplicate concurrent builds (`ABENCH_IMAGE_BUILD_CACHE`, normally
    `~/.cache/abench/images`). These local cache records never substitute for published digest locks.

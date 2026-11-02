@@ -112,8 +112,8 @@ class CatalogTests(unittest.TestCase):
             kit.write_text(kit.read_text() + '\n# changed protocol\n')
             after = catalog.case_lock('DS-GBM-001', root)
             self.assertEqual(sorted(k for k in before if before[k] != after[k]), ['harness_sha256', 'oj_sha256'])
-            record = {'case_id': 'DS-GBM-001', 'run_config': {'suite': 'all@2026.10', 'run_lock': {'case': before}}}
-            catalog.suite_cases('all@2026.10', root, only={'DS-GBM-001'})        # the suite identity still holds
+            record = {'case_id': 'DS-GBM-001', 'run_config': {'suite': 'all@2.2.0', 'run_lock': {'case': before}}}
+            catalog.suite_cases('all@2.2.0', root, only={'DS-GBM-001'})        # the suite identity still holds
             with self.assertRaisesRegex(ValueError, r'changed since the run started \(harness_sha256, oj_sha256\)'):
                 catalog.check_run_lock(record, root)
 
@@ -139,12 +139,12 @@ class CatalogTests(unittest.TestCase):
             self.assertRegex(frozen['suites']['all@3.0.0']['created_at'], r'^\d{4}-\d{2}-\d{2}$')
             with self.assertRaisesRegex(ValueError, 'semantic version'):
                 catalog.freeze_suite('all@next', root)
-            self.assertEqual(len(catalog.suite_cases('all@2026.10', root=root, only={'TC-FT-001'})[0]), 1)
+            self.assertEqual(len(catalog.suite_cases('all@2.2.0', root=root, only={'TC-FT-001'})[0]), 1)
             with self.assertRaisesRegex(ValueError, 'immutable'):
                 catalog.freeze_suite('all@3.0.0', root)
             calibration = catalog.freeze_suite('calibration@1.0.0', root)
             self.assertEqual((calibration['cases'], calibration['default']), (3, False))
-            self.assertEqual(catalog.suite_cases('calibration', root=root)[1], 'calibration@2.1.0')
+            self.assertEqual(catalog.suite_cases('calibration', root=root)[1], 'calibration@2.2.0')
 
 
 class CategoryTests(unittest.TestCase):
@@ -326,7 +326,7 @@ class JobTests(unittest.TestCase):
             root = Path(tmp)
             row = self.by['TC-FT-001']
             doc = jobs.plan([row], ['mock'], [None], inventory=[])
-            doc.update(id='resume', suite='all@2026.10')
+            doc.update(id='resume', suite='all@2.2.0')
             entry = doc['entries'][0]
             run = root / 'runs' / 'mock' / row['category'] / row['id'] / ('job-resume-' + entry['id'])
             run.mkdir(parents=True)
@@ -360,7 +360,7 @@ class JobTests(unittest.TestCase):
     def _job(self, root, job_id):
         row = self.by['TC-FT-001']
         doc = jobs.plan([row], ['mock'], [None], inventory=[])
-        doc.update(id=job_id, suite='all@2026.10')
+        doc.update(id=job_id, suite='all@2.2.0')
         return row, doc, root / 'jobs' / job_id / 'job.json'
 
     def test_interrupted_attempt_restarts_in_a_fresh_run_directory(self):
@@ -449,7 +449,7 @@ class JobTests(unittest.TestCase):
         doc = jobs.plan([row], ['mock'], [None], inventory=busy)
         self.assertEqual(doc['entries'][0]['state'], 'pending')
         with tempfile.TemporaryDirectory() as tmp:
-            doc.update(id='busy', suite='all@2026.10')
+            doc.update(id='busy', suite='all@2.2.0')
             with patch('catalog.load_catalog', return_value=[row]), patch('jobs.gpu_inventory', return_value=busy), \
                     patch('jobs.os.cpu_count', return_value=64), patch('jobs.subprocess.Popen') as launch:
                 jobs.execute(doc, Path(tmp) / 'jobs/busy/job.json', root=Path(tmp))
@@ -479,7 +479,7 @@ class JobTests(unittest.TestCase):
     def test_report_retains_primary_interval_and_baseline_ratio(self):
         row = self.by['A-LIN-002']
         doc = jobs.plan([row], ['mock'], [None], inventory=[])
-        doc.update(id='report', suite='all@2026.10')
+        doc.update(id='report', suite='all@2.2.0')
         with tempfile.TemporaryDirectory() as tmp:
             run = Path(tmp)
             (run / 'evaluation.json').write_text(json.dumps({'verdict': 'evaluated',
@@ -495,7 +495,7 @@ class JobTests(unittest.TestCase):
             row = self.by['A-LIN-002']
             gpu = [{'index': '0', 'class': 'reference24', 'idle': True}]
             doc = jobs.plan([row], ['mock'], [None], inventory=gpu)
-            doc.update(id='budget', suite='all@2026.10')
+            doc.update(id='budget', suite='all@2.2.0')
             with patch('catalog.load_catalog', return_value=[row]), patch('jobs.gpu_inventory', return_value=gpu), patch('jobs.os.cpu_count', return_value=64), patch('jobs.subprocess.Popen') as launch:
                 jobs.execute(doc, Path(tmp) / 'job.json', root=Path(tmp), max_gpu_hours=0)
                 launch.assert_not_called()

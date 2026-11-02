@@ -80,11 +80,12 @@ class HostSoftEnvironment(AgentEnvironment):
             self.proxy.stop(); self.proxy = None
 
 class DockerAgentEnvironment(AgentEnvironment):
-    def __init__(self, args, paths, oj, image, sidecar_image=None, policy=None):
+    def __init__(self, args, paths, oj, image, sidecar_image=None, policy=None, harness=None):
         self.args, self.host_paths, self.oj = args, paths, oj
         self.paths = dict(CONTAINER_PATHS)
         self.docker, self.image = Docker(shutil.which("docker") or "docker"), image
         self.sidecar_image, self.policy = sidecar_image, policy
+        self.harness, self._bundle = harness, None   # the harness whose CLI bundle is mounted (tools/harness_bundles.py)
         self.ids, self.volumes = [], []
         self.cid = self.sidecar = None
         # Object ownership is unique even when different cases share a human run id.
@@ -183,6 +184,15 @@ class DockerAgentEnvironment(AgentEnvironment):
             if src and src.is_dir():
                 vol = d.cached_volume(src, self.image)
                 mounts.append(f'type=volume,src={vol},dst={dest},readonly')
+        bundle = self.bundle()
+        if bundle:
+            import harness_bundles
+            vol = d.cached_volume(Path(bundle['directory']), self.image)
+            mounts.append(f'type=volume,src={vol},dst={harness_bundles.MOUNT},readonly')
+            digest = next((r.get('digest') for r in reversed(getattr(d, 'cache_records', [])) if r.get('volume') == vol), None)
+            self.record['harness_bundle'] = {'harness': bundle['harness'], 'version': bundle['version'],
+                                             'volume': vol, 'mount': harness_bundles.MOUNT,
+                                             **harness_bundles.attestation(bundle['harness'], info['platform'], digest)}
         self.record['data_caches'] = getattr(d, 'cache_records', [])
         if self.policy:
             self._start_sidecar(control, info, mounts)
@@ -230,6 +240,23 @@ print(json.dumps(r))
             if not ready:
                 raise DockerError('egress sidecar did not become ready')
         return self.record
+
+    def bundle(self):
+        """This host's built bundle of the harness, or a ValueError naming the command that builds it."""
+        if self.harness and self._bundle is None:
+            import harness_bundles
+            self._bundle = harness_bundles.find(self.harness, self.docker.info()['platform'])
+        return self._bundle
+
+    def default_path(self):
+        """PATH of the task image (a CUDA profile adds its toolkit), with the harness bundle's bin first."""
+        env = (self.docker.inspect(self.image).get('Config') or {}).get('Env') or []
+        image_path = next((e.split('=', 1)[1] for e in env if e.startswith('PATH=')),
+                          '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin')
+        if self.bundle():
+            import harness_bundles
+            return harness_bundles.MOUNT + '/bin:' + image_path
+        return image_path
 
     def write_files(self, files):
         import tempfile
