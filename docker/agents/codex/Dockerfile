@@ -4,7 +4,7 @@ ARG PROFILE_IMAGE
 FROM node:24.14.0-bookworm-slim AS node
 FROM ${PROFILE_IMAGE}
 USER root
-RUN apt-get update && apt-get install -y --no-install-recommends procps psmisc lsof strace curl wget netcat-openbsd iputils-ping iproute2 git less vim nano patch unzip zip xz-utils bzip2 file jq bc tree time rsync tmux && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends procps psmisc lsof strace curl wget netcat-openbsd iputils-ping iproute2 git less vim nano patch unzip zip xz-utils bzip2 file jq bc tree time rsync tmux poppler-utils && rm -rf /var/lib/apt/lists/*
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && HOME=/root npm install -g @openai/codex@0.165.0 && npm cache clean --force && rm -rf /root/.npm
