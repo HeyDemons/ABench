@@ -110,6 +110,8 @@ python3 tools/prepare/run.py --case DS-GBM-001 --list-sources       # download t
 python3 tools/prepare/run.py --case DS-GBM-001 --raw-dir RAW --key-file ~/.abench/hidden.key
 ./abench calibrate DS-GBM-001
 python3 tools/prepare/run.py --case DS-GBM-001 --activate
+# ... or all four steps for many cases at once (same filters as jobs; finished steps are skipped)
+./abench prepare --category data_science --raw-root ~/abench-raw --gpus 0 --allow-nonreference-gpu
 
 # Runs: the plumbing agent once per case (again after image, code or host changes), then any number of agent runs
 export ABENCH_JUDGE_TOOLS_SHA256="$(python3 -c 'import sys; sys.path.insert(0,"tools"); import oj_eval; print(oj_eval.tree_hash(oj_eval.TOOLS))')"
@@ -118,6 +120,11 @@ export ABENCH_JUDGE_TOOLS_SHA256="$(python3 -c 'import sys; sys.path.insert(0,"t
 ./abench summarize runs/dsh-deepseek-flash-anthropic/DS-GBM-001/RUN_ID
 ```
 
+- **Batch preparation.** `./abench prepare` downloads every source with a URL into `RAW_ROOT/<case>/` (Hugging Face
+  files and trees, GitHub blobs, plain files; checksums from the case's SOURCES are checked), freezes with a fresh
+  secret seed where the case has one, calibrates (GPU cases need `--gpus`) and activates after an `evaluated`
+  calibration. Cases that need the operator (a web page instead of a file, an untuned baseline, no GPU) are
+  listed with the reason under `needs_operator`; `--steps` runs a subset, e.g. `--steps download`.
 - **Images.** Agent images name the harness; build one per profile and harness you run. Behind a proxy whose
   address differs inside Docker, see the proxy notes above.
 - **Isolation checks.** These run real containers: no network or DNS for the agent, read-only view, the hub

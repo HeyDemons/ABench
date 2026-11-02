@@ -307,6 +307,36 @@ def calibrate(argv: list[str]) -> int:
     return call('sandbox_runner.py', command, env=env)
 
 
+def prepare_command(argv: list[str]) -> int:
+    """Download, freeze, calibrate and activate the selected cases (tools/prepare/batch.py)."""
+    sys.path.insert(0, str(ROOT / 'tools' / 'prepare'))
+    import batch
+    ap = argparse.ArgumentParser(prog='abench prepare', description=batch.__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    add_filters(ap)
+    ap.add_argument('--raw-root', required=True, help='raw files go to RAW_ROOT/<case>/')
+    ap.add_argument('--hidden-key-file', default=str(Path.home() / '.abench/hidden.key'))
+    ap.add_argument('--steps', default=','.join(batch.STEPS), help='comma-separated subset of ' + ','.join(batch.STEPS))
+    ap.add_argument('--gpus', help='GPU for calibrating GPU cases')
+    ap.add_argument('--allow-nonreference-gpu', action='store_true')
+    ap.add_argument('--allow-unverified', action='store_true', help='passed to tools/prepare/run.py')
+    ap.add_argument('--run-id', default='ojcal-prepare', help='calibration run id')
+    args = ap.parse_args(argv)
+    steps = [s for s in args.steps.split(',') if s]
+    if unknown := set(steps) - set(batch.STEPS):
+        ap.error('unknown steps: ' + ', '.join(sorted(unknown)))
+    key = Path(args.hidden_key_file).expanduser()
+    if {'freeze', 'calibrate'} & set(steps) and not key.is_file():
+        ap.error(f'no key at {key}; create one with: python3 tools/hidden_store.py keygen {key}')
+    rows, suite = selected(args)
+    results = batch.prepare(rows, Path(args.raw_root).expanduser().resolve(), key, steps, gpus=args.gpus,
+                            nonreference=args.allow_nonreference_gpu, allow_unverified=args.allow_unverified,
+                            run_id=args.run_id, log=lambda line: print(line, file=sys.stderr, flush=True))
+    emit({'suite': suite, 'status': dict(Counter(r['status'] for r in results)),
+          'needs_operator': {r['case']: r['reason'] for r in results if r['status'] != 'done'}, 'cases': results})
+    return int(any(r['status'] == 'failed' for r in results))
+
+
 def jobs_command(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog='abench jobs')
     sub = ap.add_subparsers(dest='action', required=True)
@@ -390,8 +420,8 @@ def jobs_command(argv: list[str]) -> int:
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('doctor', 'images', 'cases', 'case', 'suites', 'harnesses', 'run', 'calibrate', 'judge', 'jobs',
-                                            'gc', 'summarize'))
+    parser.add_argument('command', choices=('doctor', 'images', 'cases', 'case', 'suites', 'harnesses', 'prepare', 'run', 'calibrate',
+                                            'judge', 'jobs', 'gc', 'summarize'))
     args, rest = parser.parse_known_args(argv)
     if args.command == 'doctor':
         return doctor()
@@ -404,6 +434,8 @@ def main(argv: list[str] | None = None) -> int:
         return call('sandbox_runner.py', rest)
     if args.command == 'calibrate':
         return calibrate(rest)
+    if args.command == 'prepare':
+        return prepare_command(rest)
     if args.command == 'jobs':
         return jobs_command(rest)
     if args.command == 'cases':
